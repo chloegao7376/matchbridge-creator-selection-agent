@@ -1,0 +1,50 @@
+[
+  {
+    "rule_id": "rule_ad_disclosure",
+    "version": "1.0",
+    "type": "content_compliance",
+    "description": "合作内容缺少可识别的广告标识线索",
+    "default_action": "REVIEW",
+    "is_legal_determination": false
+  },
+  {
+    "rule_id": "rule_risky_claim",
+    "version": "1.0",
+    "type": "content_compliance",
+    "description": "检测到需要结合上下文和证明材料复核的宣传表述",
+    "default_action": "REVIEW",
+    "is_legal_determination": false
+  },
+  {
+    "rule_id": "rule_growth_anomaly",
+    "version": "1.0",
+    "type": "traffic_authenticity",
+    "description": "短周期粉丝增长与互动质量不一致",
+    "default_action": "REVIEW",
+    "is_legal_determination": false
+  },
+  {
+    "rule_id": "rule_reputation_spike",
+    "version": "1.0",
+    "type": "reputation",
+    "description": "近期负面评论比例显著升高",
+    "default_action": "REVIEW",
+    "is_legal_determination": false
+  },
+  {
+    "rule_id": "rule_competitor_exclusion",
+    "version": "1.0",
+    "type": "commercial_conflict",
+    "description": "竞品合作仍处于品牌设定的排他窗口",
+    "default_action": "BLOCK",
+    "is_legal_determination": false
+  },
+  {
+    "rule_id": "rule_delivery_reliability",
+    "version": "1.0",
+    "type": "delivery",
+    "description": "历史延期或高修改次数达到审核阈值",
+    "default_action": "REVIEW",
+    "is_legal_determination": false
+  }
+]

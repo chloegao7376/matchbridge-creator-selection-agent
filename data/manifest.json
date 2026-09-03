@@ -1,0 +1,43 @@
+{
+  "dataset_name": "creator_match_risk_synthetic_v1",
+  "generated_at": "2026-08-31",
+  "as_of_date": "2026-08-31",
+  "seed": 20260831,
+  "is_synthetic": true,
+  "contains_real_personal_data": false,
+  "production_tables_must_not_include_evaluation_labels": true,
+  "row_counts": {
+    "creators": 320,
+    "accounts": 392,
+    "audience_snapshots": 1176,
+    "account_metric_snapshots": 10192,
+    "content_items": 13768,
+    "rate_cards": 784,
+    "collaborations": 2957,
+    "risk_events": 138,
+    "campaign_briefs": 50,
+    "policy_rules": 6,
+    "evaluation_relevance_labels": 19600,
+    "evaluation_risk_scenario_labels": 392,
+    "evaluation_history_availability_scenarios": 3,
+    "evaluation_history_profile_labels": 392
+  },
+  "scenario_counts": {
+    "delivery_unreliable": 18,
+    "fake_growth_burst": 24,
+    "missing_ad_disclosure": 22,
+    "reputation_crisis": 15,
+    "risky_claim": 25
+  },
+  "history_profile_counts": {
+    "COLD_START": 19,
+    "HISTORY_LIMITED": 76,
+    "HISTORY_SUFFICIENT": 297
+  },
+  "notes": [
+    "All names, brands, profiles, content and metrics are fictional.",
+    "Risk events are review leads, not legal determinations.",
+    "Files under evaluation contain oracle labels and must not be used as recommendation inputs.",
+    "History availability evaluation includes deterministic sufficient, limited and cold-start cases."
+  ]
+}

@@ -1,0 +1,93 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-geist-sans);
+  --radius-sm: calc(var(--radius) * 0.65);
+  --radius-md: calc(var(--radius) * 0.82);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.35);
+  --radius-2xl: calc(var(--radius) * 1.75);
+}
+
+:root {
+  --background: #f6f7f3;
+  --foreground: #17262c;
+  --card: #ffffff;
+  --card-foreground: #17262c;
+  --popover: #ffffff;
+  --popover-foreground: #17262c;
+  --primary: #183f3d;
+  --primary-foreground: #f7fbf7;
+  --secondary: #e7eeeb;
+  --secondary-foreground: #183f3d;
+  --muted: #edf0ec;
+  --muted-foreground: #68777b;
+  --accent: #e8a94b;
+  --accent-foreground: #42300f;
+  --destructive: #b74735;
+  --border: #dce2de;
+  --input: #d4dcd7;
+  --ring: #5f827e;
+  --radius: 0.72rem;
+}
+
+.dark {
+  --background: #101c20;
+  --foreground: #eef5f1;
+  --card: #17262c;
+  --card-foreground: #eef5f1;
+  --popover: #17262c;
+  --popover-foreground: #eef5f1;
+  --primary: #b8d8cf;
+  --primary-foreground: #112522;
+  --secondary: #22363b;
+  --secondary-foreground: #eef5f1;
+  --muted: #203137;
+  --muted-foreground: #9cacae;
+  --accent: #e8a94b;
+  --accent-foreground: #2d210e;
+  --destructive: #ee8170;
+  --border: #2b3d42;
+  --input: #34474c;
+  --ring: #80a7a1;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  button,
+  a {
+    -webkit-tap-highlight-color: transparent;
+  }
+}

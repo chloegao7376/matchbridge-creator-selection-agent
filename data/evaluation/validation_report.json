@@ -1,0 +1,15 @@
+{
+  "valid": true,
+  "errors": [],
+  "row_counts": {
+    "creators": 320,
+    "accounts": 392,
+    "audience_snapshots": 1176,
+    "account_metric_snapshots": 10192,
+    "content_items": 13768,
+    "rate_cards": 784,
+    "collaborations": 2957,
+    "risk_events": 138,
+    "campaign_briefs": 50
+  }
+}
