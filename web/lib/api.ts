@@ -1,6 +1,9 @@
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:8000';
 
+export const IS_DEMO_MODE =
+  process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
+
 export type CampaignBrief = {
   campaign_id: string;
   brand_name: string;
@@ -128,7 +131,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export const api = {
+const liveApi = {
   listBriefs: () => request<CampaignBrief[]>('/api/briefs?limit=50'),
   recommend: (payload: unknown) =>
     request<RecommendationResponse>('/api/recommendations/ranked', {
@@ -160,3 +163,27 @@ export const api = {
       body: JSON.stringify({ actor_name: actorName }),
     }),
 };
+
+const demoApiPromise = IS_DEMO_MODE
+  ? import('./demo').then((module) => module.demoApi)
+  : null;
+
+export const api = IS_DEMO_MODE
+  ? {
+      listBriefs: async () => (await demoApiPromise!).listBriefs(),
+      recommend: async (payload: unknown) =>
+        (await demoApiPromise!).recommend(payload),
+      createReview: async (runId: string, reviewerName: string) =>
+        (await demoApiPromise!).createReview(runId, reviewerName),
+      updateReviewItem: async (
+        reviewId: string,
+        accountId: string,
+        payload: Record<string, unknown>,
+      ) =>
+        (await demoApiPromise!).updateReviewItem(reviewId, accountId, payload),
+      recalculate: async (reviewId: string, _actorName: string) =>
+        (await demoApiPromise!).recalculate(reviewId),
+      confirm: async (reviewId: string, _actorName: string) =>
+        (await demoApiPromise!).confirm(reviewId),
+    }
+  : liveApi;

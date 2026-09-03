@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   ChevronDown,
   CircleDollarSign,
+  Code2,
   FileClock,
   LayoutGrid,
   Loader2,
@@ -50,6 +51,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import {
   api,
+  IS_DEMO_MODE,
   type BudgetCandidate,
   type BudgetSummary,
   type CampaignBrief,
@@ -716,6 +718,11 @@ export default function Home() {
             </div>
           </div>
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            {IS_DEMO_MODE && (
+              <Badge className="hidden bg-blue-50 text-blue-700 sm:inline-flex">
+                公开演示 · 虚构数据
+              </Badge>
+            )}
             {review && (
               <span className="hidden sm:inline">
                 审计版本 v{review.version}
@@ -730,6 +737,15 @@ export default function Home() {
             >
               {confirmed ? '名单已确认' : '等待人工确认'}
             </Badge>
+            <a
+              href="https://github.com/chloegao7376/matchbridge-creator-selection-agent"
+              target="_blank"
+              rel="noreferrer"
+              aria-label="查看 GitHub 源码"
+              className="grid size-8 place-items-center rounded-lg border border-border bg-card text-foreground transition-colors hover:bg-muted"
+            >
+              <Code2 className="size-4" />
+            </a>
           </div>
         </div>
       </header>

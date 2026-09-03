@@ -14,10 +14,12 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL(
-    process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000',
+    process.env.NEXT_PUBLIC_SITE_URL ??
+      'https://matchbridge-creator-selection-agent.maple-owlet-9574.chatgpt.site',
   ),
   title: 'MatchBridge 智选 · Campaign选号工作台',
-  description: '面向品牌业务团队的可解释达人选号与人工确认工作台。',
+  description:
+    '面向品牌业务团队的可解释达人匹配、风险审核、预算组合优化与人工确认工作台。',
   openGraph: {
     title: 'MatchBridge 智选',
     description: 'Campaign 选号与人工确认工作台',
