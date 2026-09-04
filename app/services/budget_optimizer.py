@@ -186,8 +186,16 @@ class BudgetOptimizer:
         missing_kpi_count = 0
         incomplete_overlap_count = 0
         review_count = 0
+        cold_start_count = 0
         for ranked in sorted(candidates, key=lambda item: item.recommendation_rank):
             if ranked.account_id in excluded_account_ids:
+                continue
+            history = getattr(ranked.features, "historical_data_availability", None)
+            if (
+                getattr(history, "tier", "HISTORY_SUFFICIENT") == "COLD_START"
+                and ranked.account_id not in required_account_ids
+            ):
+                cold_start_count += 1
                 continue
             if (
                 ranked.risk_decision != "PASS"
@@ -370,6 +378,11 @@ class BudgetOptimizer:
             else "PARTIAL"
         )
         warnings = []
+        if cold_start_count:
+            warnings.append(
+                f"{cold_start_count}位完全冷启动候选未被自动纳入预算组合；"
+                "需人工明确加入并锁定后，才可参与重新优化。"
+            )
         if review_count:
             warnings.append(f"{review_count}位REVIEW候选未被自动纳入预算组合，需人工复核后再决定。")
         if missing_cost_count:

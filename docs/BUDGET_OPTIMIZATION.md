@@ -31,6 +31,7 @@ subject to
   sum(selected_i) <= creator_count
   selected_i in {0, 1}
   risk_decision_i == PASS
+  historical_data_tier_i != COLD_START，除非人工明确加入并锁定
   estimated_cost_i is valid
   baseline_primary_kpi_i is available
 ```
@@ -97,6 +98,10 @@ audience_overlap_penalty(S)
 audience_overlap 是基于受众分布的代理估计，不是真实粉丝去重结果。获得平台侧去重触达数据后，应替换为真正的边际KPI模型。缺失某一分布时，该相似度分项暂用 0.5 中性代理并返回 warning。
 
 当 overlap-adjusted KPI 相同时，依次优先原始预期主KPI总量、fit总分、更低总成本和更靠前的候选排名。REVIEW 候选不会被自动入选；有效 BLOCK 在更早的 SQL 硬过滤阶段已被排除。
+
+完全冷启动候选同样不会被系统自动纳入组合。其 Fit 结果仍保留在候选列表中供人工判断；
+业务人员执行“加入”并保持锁定后，该达人作为 `required_account_ids` 参与重新优化，同时继续
+受总预算、人数、风险审核、有效报价和主KPI基线约束。
 
 ## 当前边界
 

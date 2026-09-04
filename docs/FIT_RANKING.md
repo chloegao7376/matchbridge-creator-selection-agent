@@ -10,7 +10,7 @@ GET /api/recommendations/ranked
     &retrieval_depth=100
 ```
 
-该接口执行 SQL 硬过滤、Hybrid Top-K、特征计算和最终评分。评分版本为 `fit_scoring_v1`。
+该接口执行 SQL 硬过滤、Hybrid Top-K、特征计算和最终评分。评分版本为 `fit_scoring_v2_history_tiering`。
 
 默认业务响应按三阶段组织：
 
@@ -87,6 +87,25 @@ stages.final      PASS/REVIEW与最终排序口径
 | 数据质量 `data_quality` | 5% |
 
 权重和为 1。当前是业务初始权重，后续应用离线相关性标签、实际Campaign效果和品牌反馈校准，不应在无版本变更的情况下直接修改。
+
+### 历史有限：只重新分配被释放的历史效果权重
+
+历史有限达人先按 `history_reliability` 保留历史效果权重：
+
+```text
+performance_effective = performance_base × history_reliability
+released_weight = performance_base × (1 − history_reliability)
+```
+
+`released_weight` 再按内容相关性40%、受众适配度30%、流量质量20%、数据质量10%分配。
+这四个比例是释放权重的分配比例，不是最终七维权重。成本效率与履约能力保持基础权重。
+
+### 完全冷启动：固定稳定性信号权重
+
+完全冷启动使用系统固定权重：内容相关性36%、受众适配度24%、历史效果0%、成本效率10%、
+流量质量13%、履约能力10%、数据质量7%。缺失维度仍执行可用权重重归一化与覆盖率惩罚，
+不会用虚构值补齐；主KPI预测使用低置信度品类基线代理。完全冷启动候选保留在推荐列表供
+人工复核，但默认不进入预算组合，只有人工明确加入并锁定后才允许参与重新优化。
 
 ## 置信度处理
 

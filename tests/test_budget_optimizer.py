@@ -13,6 +13,7 @@ def candidate(
     risk: str = "PASS",
     expected_kpi: float | None = None,
     audience_group: str = "shared",
+    history_tier: str = "HISTORY_SUFFICIENT",
 ):
     cost_component = SimpleNamespace(
         raw_value=cost,
@@ -42,6 +43,7 @@ def candidate(
         overall_confidence=1.0,
         risk_decision=risk,
         features=SimpleNamespace(
+            historical_data_availability=SimpleNamespace(tier=history_tier),
             cost_efficiency=SimpleNamespace(
                 components={"estimated_cost_cny": cost_component},
             ),
@@ -192,6 +194,38 @@ def test_optimizer_allows_review_only_after_human_clearance():
 
     assert [item.account_id for item in without_clearance.selected_candidates] == ["pass"]
     assert [item.account_id for item in with_clearance.selected_candidates] == ["review"]
+
+
+def test_cold_start_requires_explicit_human_lock_before_optimization():
+    candidates = [
+        candidate(
+            "cold",
+            1,
+            100,
+            50,
+            audience_group="cold",
+            history_tier="COLD_START",
+        ),
+        candidate("sufficient", 2, 50, 50, audience_group="sufficient"),
+    ]
+
+    automatic = BudgetOptimizer().optimize(
+        candidates,
+        total_budget_cny=50,
+        target_creator_count=1,
+        primary_kpi="conversions",
+    )
+    human_locked = BudgetOptimizer().optimize(
+        candidates,
+        total_budget_cny=50,
+        target_creator_count=1,
+        primary_kpi="conversions",
+        required_account_ids={"cold"},
+    )
+
+    assert [item.account_id for item in automatic.selected_candidates] == ["sufficient"]
+    assert any("完全冷启动" in warning for warning in automatic.warnings)
+    assert [item.account_id for item in human_locked.selected_candidates] == ["cold"]
 
 
 def test_sparse_optimizer_matches_brute_force_on_small_random_cases():

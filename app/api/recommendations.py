@@ -140,6 +140,7 @@ def execute_ranking(
             "total_budget_cny": brief.total_budget_cny,
             "target_creator_count": brief.creator_count,
             "risk_eligibility": "PASS_only",
+            "cold_start_eligibility": "human_required_only",
         },
     )
     try:

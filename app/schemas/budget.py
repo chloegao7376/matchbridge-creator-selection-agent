@@ -29,8 +29,10 @@ class BudgetOptimizationSummary(BaseModel):
         "v3在总预算和人数上限内最大化适配、置信及受众重叠代理修正后的预期主KPI；"
         "audience_overlap基于受众分布代理估计，不是真实粉丝去重结果。"
     )
-    candidate_scope: Literal["retrieved_pass_candidates_with_valid_cost_and_kpi"] = (
-        "retrieved_pass_candidates_with_valid_cost_and_kpi"
+    candidate_scope: Literal[
+        "retrieved_pass_candidates_with_valid_cost_and_kpi_cold_start_requires_human_lock"
+    ] = (
+        "retrieved_pass_candidates_with_valid_cost_and_kpi_cold_start_requires_human_lock"
     )
     solution_status: Literal["HEURISTIC"] = "HEURISTIC"
     staffing_status: Literal["FULL", "PARTIAL", "EMPTY"]
