@@ -16,7 +16,7 @@ MatchBridge 智选面向品牌营销团队，将品类、预算、目标人群�
 
 ## 项目亮点
 
-- **多阶段推荐链路**：SQL 硬条件过滤、关键词与语义混合召回、七维 Fit 重排、风险决策、预算组合优化。
+- **多阶段推荐链路**：SQL 硬条件过滤、关键词与语义混合召回、七维适配度评分重排、风险决策、预算组合优化。
 - **风险不被“平均掉”**：风险独立输出 `PASS / REVIEW / BLOCK`；有效 `BLOCK` 直接阻断，`REVIEW` 必须人工处置。
 - **冷启动兜底**：在 Fit 前区分历史充分、历史有限和完全冷启动；历史有限达人改用更高比例的稳定性信号，完全冷启动不自动进入预算组合。
 - **组合目标而非个人高分**：在总预算和人数约束下，最大化置信度与受众重叠代理修正后的预期主 KPI。
@@ -40,9 +40,40 @@ flowchart LR
 
 ### 1. 准入与召回
 
-硬条件先保证账号有效、平台与品类匹配、存在有效报价、单人报价不超预算、不存在有效 `BLOCK` 风险，且 Campaign 开始时间不落在竞品冷却或历史排他窗口内。随后使用关键词检索与内容语义匹配做 Hybrid Retrieval，并通过 RRF 融合排名。
+硬条件先保证账号有效、平台与品类匹配、存在有效报价、单人报价不超预算、不存在账号有效 `BLOCK` 风险，且 Campaign 开始时间不落在竞品冷却或历史排他窗口内。随后使用关键词检索与内容语义匹配做 Hybrid Retrieval，并通过 RRF 融合排名。
 
-### 2. Fit 七维评分
+### 2. 数据可用性检测
+
+```text
+sample_weight = category_weight × format_weight × recency_weight
+effective_history_n = Σ sample_weight
+
+```
+| category 条件 | 权重 |
+|---|---:|
+| 同品类 | 1.0 |
+| 其他品类 | 0.25 |
+
+| format 条件 | 权重 |
+|---|---:|
+| 同内容形式 | 1.0 |
+| 不同内容形式 | 0.7 |
+
+| recency 条件 | 权重 |
+|---|---:|
+| 最近6个月 | 1.0 |
+| 6-12个月 | 0.7 |
+| 12-18个月 | 0.4 |
+
+分层标准
+
+| 历史数据层级 | 标准 | 处理方式 |
+|---|---|---:|
+| 历史充分 | `effective_history_n` ≧ 3 |
+| 历史有限 | 0 < `effective_history_n` < 3 |
+| 完全冷启动 | `effective_history_n` = 0 |
+
+### 3. 七维达人适配度评分
 #### Default 模式
 默认权重如下，置信度、缺失值和风险规则由系统固定管理：
 
@@ -56,9 +87,9 @@ flowchart LR
 | 履约能力 | 10% |
 | 数据质量 | 5% |
 
-**历史充分：**达人历史有效合作次数 ≧ 3，`history_reliability` = 1。按照默认权重进行Fit七维评分（历史效果权重 = 15%）。
+**历史充分：**`history_reliability` = 1。按照默认权重进行Fit七维评分（历史效果权重 = 15%）。
 
-**历史有限：**0 < 达人历史有效合作次数 < 3，`history_reliability`= min (历史有效合作次数/3, 1)。保留部分历史效果权重，同时根据`history_reliability`释放部分历史权重：
+**历史有限：`history_reliability`= min (历史有效合作次数/3, 1)。保留部分历史效果权重，同时根据`history_reliability`释放部分历史权重：
 
 ```text
 历史效果有效权重 = 15% × history_reliability
@@ -66,10 +97,10 @@ flowchart LR
 ```
 
 被释放权重再按内容相关性 40%、受众适配度 30%、流量质量 20%、数据质量 10% 分配，
-成本效率与履约能力的基础权重保持不变。例如默认权重下 `history_reliability = 0.5` 时，
+例如默认权重下 `history_reliability = 0.5` 时，
 七维有效权重依次为 33%、22.25%、7.5%、10%、11.5%、10%、5.75%。
 
-**完全冷启动：**达人历史有效合作次数 = 0。不使用历史效果，Fit 改用可观测稳定性信号与系统固定权重：
+**完全冷启动：**不使用历史效果，Fit 改用可观测稳定性信号与系统固定权重：
 
 | 维度 | 完全冷启动权重 |
 |---|---:|
@@ -92,29 +123,110 @@ flowchart LR
 
 ```text
 maximize Σ selected_k
-         × baseline_primary_kpi_k
+         × baseline_expected_primary_kpi_k
          × campaign_transfer_factor_k
          × confidence_factor_k
-         − audience_overlap_penalty
+         − audience_overlap_penalty(S)
 ```
 
-Primary KPI 视品牌目标而定：
+Primary KPI 字段视品牌目标而定：
 
-| 目标 | Primary KPI |
+| 目标 | 历史 Primary KPI（比率）|
 |---|---:|
-| 曝光（impression） | 总曝光数/总观看量 |
-| 互动（engagement） | 总互动数/总观看量 |
-| 转化（conversion） | 总转化量/总观看量 |
+| 曝光 | Σ impressions ÷ Σ views |
+| 互动 | Σ engagements ÷ Σ views |
+| 转化 | Σ conversions ÷ Σ views |
 
-`baseline_primary_kpi` = 近30天观看中位数 × 每位达人交付数 × Primary KPI
-
-`campaign_transfer_factor` = 内容相关性 50% + 受众适配度 35% + 流量质量 10% + 履约能力 5%
-
-`audience_overlap` 由年龄、地区、兴趣标签与性别分布构成代理估计，并不等同于平台侧真实粉丝去重；获得去重触达数据后，应替换为真正的边际 KPI 模型。
+同品类群体基准KPI（比率）：
 
 ```text
-audience_overlap_penalty = Σ(i<j)[audience_similarity(i,j) × min(expected_kpi_i, expected_kpi_j)] / max(creator_count - 1, 1)
+cohort_kpi_rate
+= 同品类历史合作的KPI总量 ÷ 同品类历史合作的views总量
 ```
+
+当前使用相当于 50,000 次观看的群体先验。将达人自身历史向群体基准收缩：
+
+```text
+creator_blended_kpi_rate_i
+=
+(
+  creator_same_category_kpi_i
+  + cohort_kpi_rate × 50,000
+)
+÷
+(
+  creator_same_category_views_i
+  + 50,000
+)
+```
+
+历史越多，结果越接近达人自身历史比率；
+历史越少，结果越接近同品类群体基准；
+完全冷启动时，结果等于群体基准。
+
+基线预期 KPI：
+
+```text
+baseline_expected_primary_kpi_i
+=
+median_views_last_30d_i
+× deliverables_per_creator
+× creator_blended_kpi_rate_i
+```
+
+Campaign迁移系数：
+
+```text
+campaign_transfer_factor_i
+=
+content_relevance_i × 50%
++ audience_fit_i × 35%
++ traffic_quality_i × 10%
++ delivery_reliability_i × 5%
+```
+
+最终单达人预期 KPI：
+
+```text
+expected_primary_kpi_i
+=
+baseline_expected_primary_kpi_i
+× campaign_transfer_factor_i
+× confidence_factor_i
+```
+
+两位达人受众重叠度：
+
+```text
+audience_similarity(i,j)
+=
+年龄分布重叠 × 35%
++ 地区分布重叠 × 30%
++ 兴趣标签Jaccard相似度 × 20%
++ 性别分布重叠 × 15%
+```
+
+两位达人可能重复的 KPI 贡献（理论上不应超过贡献较少的一方）：
+
+```text
+pair_overlap_proxy(i,j)
+=
+audience_similarity(i,j)
+× min(
+    expected_primary_kpi_i,
+    expected_primary_kpi_j
+  )
+```
+
+组合受众重叠惩罚：
+
+```text
+audience_overlap_penalty(S)
+=
+Σ(i<j) pair_overlap_proxy(i,j)
+÷ max(target_creator_count - 1, 1)
+```
+
 
 ## 技术架构
 
