@@ -68,7 +68,7 @@ effective_history_n = Σ sample_weight
 分层标准
 
 | 历史数据层级 | 标准 |
-|---|---|---:|
+|---|---:|
 | 历史充分 | `effective_history_n` ≧ 3 |
 | 历史有限 | 0 < `effective_history_n` < 3 |
 | 完全冷启动 | `effective_history_n` = 0 |
@@ -149,15 +149,11 @@ cohort_kpi_rate
 ```text
 creator_blended_kpi_rate_i
 =
-(
-  creator_same_category_kpi_i
-  + cohort_kpi_rate × 50,000
-)
+(creator_same_category_kpi_i
+  + cohort_kpi_rate × 50,000)
 ÷
-(
-  creator_same_category_views_i
-  + 50,000
-)
+(creator_same_category_views_i
+  + 50,000)
 ```
 
 历史越多，结果越接近达人自身历史比率；
@@ -212,10 +208,8 @@ audience_similarity(i,j)
 pair_overlap_proxy(i,j)
 =
 audience_similarity(i,j)
-× min(
-    expected_primary_kpi_i,
-    expected_primary_kpi_j
-  )
+× min(expected_primary_kpi_i,
+    expected_primary_kpi_j)
 ```
 
 组合受众重叠惩罚：
