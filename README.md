@@ -87,6 +87,7 @@ effective_history_n = Σ sample_weight
 | 履约能力 | 10% |
 | 数据质量 | 5% |
 
+
 **历史充分：** 
 
 ```text
@@ -94,9 +95,10 @@ history_reliability = 1
 ```
 按照默认权重进行Fit七维评分（历史效果权重 = 15%）。
 
+
 **历史有限：** 
 ```text
-history_reliability= min (历史有效合作次数 ÷ 3, 1)
+history_reliability = min (effective_history_n ÷ 3, 1)
 ```
 保留部分历史效果权重，同时根据`history_reliability`释放部分历史权重：
 
@@ -108,6 +110,7 @@ history_reliability= min (历史有效合作次数 ÷ 3, 1)
 被释放权重再按内容相关性 40%、受众适配度 30%、流量质量 20%、数据质量 10% 分配，
 例如默认权重下 `history_reliability = 0.5` 时，
 七维有效权重依次为 33%、22.25%、7.5%、10%、11.5%、10%、5.75%。
+
 
 **完全冷启动：** 不使用历史效果，Fit 改用可观测稳定性信号与系统固定权重：
 
