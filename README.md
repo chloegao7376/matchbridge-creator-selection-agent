@@ -57,6 +57,7 @@ flowchart LR
 | 数据质量 | 5% |
 
 **历史充分：**达人历史有效合作次数 ≧ 3，`history_reliability` = 1。按照默认权重进行Fit七维评分（历史效果权重 = 15%）。
+
 **历史有限：**0 < 达人历史有效合作次数 < 3，`history_reliability`= min (历史有效合作次数/3, 1)。保留部分历史效果权重，同时根据`history_reliability`释放部分历史权重：
 
 ```text
