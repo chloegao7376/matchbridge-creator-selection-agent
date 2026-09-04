@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_SITE_URL ??
-      'https://matchbridge-creator-selection-agent.chloegao7376.chatgpt.site',
+      'https://chloegao7376.github.io/matchbridge-creator-selection-agent/',
   ),
   title: 'MatchBridge 智选 · Campaign选号工作台',
   description:
