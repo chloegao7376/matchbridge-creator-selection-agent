@@ -71,6 +71,7 @@ type CandidateSeed = {
   selected: boolean;
   topics: string[];
   audienceEvidence: string;
+  matchedTopics?: string[];
 };
 
 type DemoCampaignProfile = {
@@ -174,7 +175,7 @@ const foodSeeds: CandidateSeed[] = [
     platform: '小红书',
     rank: 4,
     fit: 78.1,
-    risk: 'REVIEW',
+    risk: 'PASS',
     tier: 'HISTORY_SUFFICIENT',
     tierLabel: '历史充分',
     effectiveN: 4.7,
@@ -322,7 +323,7 @@ const beautySeeds: CandidateSeed[] = [
     platform: '小红书',
     rank: 4,
     fit: 79.4,
-    risk: 'REVIEW',
+    risk: 'PASS',
     tier: 'HISTORY_SUFFICIENT',
     tierLabel: '历史充分',
     effectiveN: 4.4,
@@ -380,6 +381,146 @@ const campaignProfiles = new Map<string, DemoCampaignProfile>([
   ['cmp_0002', { brief: demoBriefs[1], seeds: beautySeeds, kpiLabel: '互动' }],
 ]);
 
+const queryExpansions: Record<string, string[]> = {
+  配料表: ['配料表', '食品成分', '配料解读', '营养测评'],
+  成分: [
+    '成分',
+    '配料表',
+    '食品成分',
+    '配料解读',
+    '营养测评',
+    '护肤成分',
+    '精华测评',
+    '功效实测',
+  ],
+  早餐: ['早餐', '早餐搭配', '高蛋白早餐', '通勤饮食'],
+  轻食: ['轻食', '控卡饮食', '早餐搭配'],
+  敏感肌: ['敏感肌', '屏障修护', '泛红舒缓', '舒缓精华', '皮肤屏障'],
+  屏障: ['屏障', '屏障修护', '皮肤屏障', '泛红舒缓', '换季护肤'],
+  修护: ['修护', '屏障修护', '舒缓精华', '皮肤屏障', '换季护肤'],
+  精华: ['精华', '舒缓精华', '精华测评', '平价精华'],
+};
+
+const categoryTerms: Record<string, string[]> = {
+  食品饮料: [
+    '食品',
+    '饮料',
+    '配料',
+    '配料表',
+    '成分',
+    '营养',
+    '蛋白',
+    '早餐',
+    '轻食',
+    '燕麦',
+    '控卡',
+    '试吃',
+  ],
+  美妆个护: [
+    '美妆',
+    '护肤',
+    '敏感肌',
+    '皮肤',
+    '屏障',
+    '修护',
+    '舒缓',
+    '精华',
+    '泛红',
+    '功效',
+    '成分',
+  ],
+};
+
+const clamp = (value: number, minimum = 0, maximum = 1) =>
+  Math.min(maximum, Math.max(minimum, value));
+
+function expandedQueryTerms(query: string): string[] {
+  const normalized = query.trim().toLowerCase();
+  const expanded = Object.entries(queryExpansions)
+    .filter(([term]) => normalized.includes(term.toLowerCase()))
+    .flatMap(([, terms]) => terms);
+  return [...new Set(expanded.length ? expanded : [normalized])];
+}
+
+function matchesTopic(topic: string, term: string) {
+  const normalizedTopic = topic.toLowerCase();
+  const normalizedTerm = term.toLowerCase();
+  return (
+    normalizedTopic.includes(normalizedTerm) ||
+    normalizedTerm.includes(normalizedTopic)
+  );
+}
+
+function evaluateSeeds(
+  profile: DemoCampaignProfile,
+  query: string,
+): CandidateSeed[] {
+  const expandedTerms = expandedQueryTerms(query);
+  const ranked = profile.seeds
+    .map((seed) => {
+      const matchedTopics = seed.topics.filter((topic) =>
+        expandedTerms.some((term) => matchesTopic(topic, term)),
+      );
+      const focusRelevance = matchedTopics.length
+        ? clamp(0.55 + (matchedTopics.length - 1) * 0.15)
+        : 0.1;
+      const content = clamp(seed.content * 0.4 + focusRelevance * 0.6);
+      const fit = clamp(seed.fit / 100 + (content - seed.content) * 0.3) * 100;
+      const transfer = clamp(
+        seed.transfer + (content - seed.content) * 0.25,
+        0.35,
+        1,
+      );
+      const expected = Math.round(seed.expected * (transfer / seed.transfer));
+      return {
+        ...seed,
+        content,
+        fit: Number(fit.toFixed(1)),
+        transfer,
+        expected,
+        matchedTopics,
+      };
+    })
+    .sort((left, right) => {
+      if (left.risk !== right.risk) return left.risk === 'PASS' ? -1 : 1;
+      return right.fit - left.fit;
+    });
+
+  let selectedCount = 0;
+  return ranked.map((seed, index) => {
+    const selected =
+      seed.risk === 'PASS' && selectedCount < profile.brief.creator_count;
+    if (selected) selectedCount += 1;
+    return { ...seed, rank: index + 1, selected };
+  });
+}
+
+function queryWarnings(
+  profile: DemoCampaignProfile,
+  query: string,
+): RecommendationResponse['warnings'] {
+  const normalized = query.trim().toLowerCase();
+  const currentCategory = profile.brief.product_category;
+  const matchesCurrent = (categoryTerms[currentCategory] ?? []).some((term) =>
+    normalized.includes(term.toLowerCase()),
+  );
+  const alternativeCategory = Object.entries(categoryTerms).find(
+    ([category, terms]) =>
+      category !== currentCategory &&
+      terms.some((term) => normalized.includes(term.toLowerCase())),
+  )?.[0];
+
+  if (alternativeCategory && !matchesCurrent) {
+    return [
+      {
+        code: 'QUERY_CATEGORY_MISMATCH',
+        message: `查询词与Campaign品类可能不一致：当前Campaign为${currentCategory}，查询词“${query.trim()}”更接近${alternativeCategory}；本次仍继续生成推荐，请确认关注点。`,
+      },
+    ];
+  }
+  return [];
+}
+
 function profileFor(campaignId?: string): DemoCampaignProfile {
   return (
     campaignProfiles.get(campaignId ?? '') ?? campaignProfiles.get('cmp_0001')!
@@ -389,13 +530,16 @@ function profileFor(campaignId?: string): DemoCampaignProfile {
 function evidence(
   seed: CandidateSeed,
 ): RecommendationCandidate['recommendation_reasons'] {
+  const matchedTopics = seed.matchedTopics ?? seed.topics;
   return [
     {
       dimension: 'content_relevance',
-      statement: `内容相关性${(seed.content * 100).toFixed(1)}分；近期内容命中：${seed.topics.join('、')}。`,
+      statement: matchedTopics.length
+        ? `内容相关性${(seed.content * 100).toFixed(1)}分；本次关注点命中：${matchedTopics.join('、')}。`
+        : `内容相关性${(seed.content * 100).toFixed(1)}分；本次关注点未命中明确主题，主要依据Campaign基础相关性。`,
       evidence_values: {
         content_relevance_score: seed.content,
-        matched_terms: seed.topics,
+        matched_terms: matchedTopics,
       },
     },
     {
@@ -497,6 +641,9 @@ function makeCandidates(
       ...(seed.risk === 'REVIEW'
         ? ['该达人存在待复核风险线索，合作前需完成人工审核。']
         : []),
+      ...(seed.matchedTopics?.length === 0
+        ? ['本次关注点与该达人近期主题命中较弱，建议人工确认内容契合度。']
+        : []),
     ],
   }));
 }
@@ -548,7 +695,16 @@ function makeBudget(
       ? selected.reduce((sum, seed) => sum + seed.fit, 0) / selected.length
       : 0,
     selected_candidates: selectedCandidates,
-    warnings: ['2位REVIEW候选未被自动纳入预算组合，需人工复核后再决定。'],
+    warnings: (() => {
+      const reviewCount = profile.seeds.filter(
+        (seed) => seed.risk === 'REVIEW',
+      ).length;
+      return reviewCount
+        ? [
+            `${reviewCount}位REVIEW候选未被自动纳入预算组合，需人工复核后再决定。`,
+          ]
+        : [];
+    })(),
   };
 }
 
@@ -556,13 +712,17 @@ function makeRecommendation(
   query = '配料表',
   campaignId = 'cmp_0001',
 ): RecommendationResponse {
-  const profile = profileFor(campaignId);
+  const baseProfile = profileFor(campaignId);
+  const profile = {
+    ...baseProfile,
+    seeds: evaluateSeeds(baseProfile, query),
+  };
   return {
     campaign_id: profile.brief.campaign_id,
     query,
     recommendation_run_id: `run_${profile.brief.campaign_id}_demo`,
     evaluated_at: new Date().toISOString(),
-    warnings: [],
+    warnings: queryWarnings(profile, query),
     budget_optimization: makeBudget(
       profile.seeds
         .filter((seed) => seed.selected)
@@ -573,6 +733,10 @@ function makeRecommendation(
   };
 }
 
+let currentProfile: DemoCampaignProfile = {
+  ...profileFor('cmp_0001'),
+  seeds: evaluateSeeds(profileFor('cmp_0001'), '配料表'),
+};
 let currentRecommendation = makeRecommendation();
 let currentReview: SelectionReview | null = null;
 
@@ -583,7 +747,7 @@ function cloneReview() {
 
 function rebuildBudget() {
   if (!currentReview) return;
-  const profile = profileFor(currentReview.campaign_id);
+  const profile = currentProfile;
   const locked = currentReview.items.filter(
     (item) => item.disposition === 'INCLUDED' && item.locked,
   );
@@ -622,7 +786,13 @@ export const demoApi = {
   async recommend(payload: unknown) {
     await wait();
     const input = payload as { campaign_id?: string; query?: string };
-    currentRecommendation = makeRecommendation(input.query, input.campaign_id);
+    const query = input.query ?? '配料表';
+    const baseProfile = profileFor(input.campaign_id);
+    currentProfile = {
+      ...baseProfile,
+      seeds: evaluateSeeds(baseProfile, query),
+    };
+    currentRecommendation = makeRecommendation(query, input.campaign_id);
     currentReview = null;
     return structuredClone(currentRecommendation);
   },
