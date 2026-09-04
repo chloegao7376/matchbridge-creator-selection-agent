@@ -87,9 +87,18 @@ effective_history_n = Σ sample_weight
 | 履约能力 | 10% |
 | 数据质量 | 5% |
 
-**历史充分：** `history_reliability` = 1。按照默认权重进行Fit七维评分（历史效果权重 = 15%）。
+**历史充分：** 
 
-**历史有限：** `history_reliability`= min (历史有效合作次数/3, 1)。保留部分历史效果权重，同时根据`history_reliability`释放部分历史权重：
+```text
+history_reliability = 1
+```
+按照默认权重进行Fit七维评分（历史效果权重 = 15%）。
+
+**历史有限：** 
+```text
+history_reliability= min (历史有效合作次数 ÷ 3, 1)
+```
+保留部分历史效果权重，同时根据`history_reliability`释放部分历史权重：
 
 ```text
 历史效果有效权重 = 15% × history_reliability
@@ -152,8 +161,7 @@ creator_blended_kpi_rate_i
 (creator_same_category_kpi_i
   + cohort_kpi_rate × 50,000)
 ÷
-(creator_same_category_views_i
-  + 50,000)
+(creator_same_category_views_i + 50,000)
 ```
 
 历史越多，结果越接近达人自身历史比率；
