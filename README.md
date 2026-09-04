@@ -8,7 +8,7 @@
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-pgvector-4169E1)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
-**[在线体验 MatchBridge 智选](https://matchbridge-creator-selection-agent.chloegao7376.chatgpt.site)** · [查看 API 与算法文档](docs/)
+**[在线体验 MatchBridge 智选](https://chloegao7376.github.io/matchbridge-creator-selection-agent/)** · [查看 API 与算法文档](docs/)
 
 MatchBridge 智选面向品牌营销团队，将品类、预算、目标人群、平台和调性等 Campaign Brief 转化为可执行的达人组合。系统不是单纯按“最高分”选号，而是在准入约束、内容与受众适配、风险判断、预期主 KPI、报价和组合受众重叠之间做显式权衡，并保留人工锁定、排除、复核与最终确认记录。
 
