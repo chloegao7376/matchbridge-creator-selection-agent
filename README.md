@@ -87,9 +87,9 @@ effective_history_n = Σ sample_weight
 | 履约能力 | 10% |
 | 数据质量 | 5% |
 
-**历史充分：**`history_reliability` = 1。按照默认权重进行Fit七维评分（历史效果权重 = 15%）。
+**历史充分：** `history_reliability` = 1。按照默认权重进行Fit七维评分（历史效果权重 = 15%）。
 
-**历史有限：`history_reliability`= min (历史有效合作次数/3, 1)。保留部分历史效果权重，同时根据`history_reliability`释放部分历史权重：
+**历史有限：** `history_reliability`= min (历史有效合作次数/3, 1)。保留部分历史效果权重，同时根据`history_reliability`释放部分历史权重：
 
 ```text
 历史效果有效权重 = 15% × history_reliability
@@ -100,7 +100,7 @@ effective_history_n = Σ sample_weight
 例如默认权重下 `history_reliability = 0.5` 时，
 七维有效权重依次为 33%、22.25%、7.5%、10%、11.5%、10%、5.75%。
 
-**完全冷启动：**不使用历史效果，Fit 改用可观测稳定性信号与系统固定权重：
+**完全冷启动：** 不使用历史效果，Fit 改用可观测稳定性信号与系统固定权重：
 
 | 维度 | 完全冷启动权重 |
 |---|---:|
