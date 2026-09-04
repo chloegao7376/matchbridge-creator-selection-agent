@@ -56,8 +56,7 @@ flowchart LR
 | 履约能力 | 10% |
 | 数据质量 | 5% |
 
-**历史有限**并不是把七维最终权重直接改成 40% / 30% / 20% / 10%。系统先按照
-`history_reliability` 保留历史效果权重，释放不可靠的部分：
+**历史有限：**系统先按照 `history_reliability` 保留历史效果权重，释放不可靠的部分：
 
 ```text
 历史效果有效权重 = 历史效果基础权重 × history_reliability
