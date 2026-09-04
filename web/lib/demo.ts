@@ -72,12 +72,86 @@ type CandidateSeed = {
   topics: string[];
   audienceEvidence: string;
   matchedTopics?: string[];
+  fitContributors?: string[];
 };
 
 type DemoCampaignProfile = {
   brief: CampaignBrief;
   seeds: CandidateSeed[];
   kpiLabel: string;
+};
+
+type DemoFitWeights = {
+  content_relevance: number;
+  audience_fit: number;
+  performance: number;
+  cost_efficiency: number;
+  traffic_quality: number;
+  delivery_reliability: number;
+  data_quality: number;
+};
+
+type DemoEvaluationOptions = {
+  candidateCount: number;
+  keywordWeight: number;
+  vectorWeight: number;
+  retrievalDepth: number;
+  rrfK: number;
+  fitMode: 'default' | 'custom';
+  fitWeights: DemoFitWeights;
+};
+
+const defaultFitWeights: DemoFitWeights = {
+  content_relevance: 0.3,
+  audience_fit: 0.2,
+  performance: 0.15,
+  cost_efficiency: 0.1,
+  traffic_quality: 0.1,
+  delivery_reliability: 0.1,
+  data_quality: 0.05,
+};
+
+const coldStartFitWeights: DemoFitWeights = {
+  content_relevance: 0.36,
+  audience_fit: 0.24,
+  performance: 0,
+  cost_efficiency: 0.1,
+  traffic_quality: 0.13,
+  delivery_reliability: 0.1,
+  data_quality: 0.07,
+};
+
+const defaultEvaluationOptions: DemoEvaluationOptions = {
+  candidateCount: 20,
+  keywordWeight: 0.5,
+  vectorWeight: 0.5,
+  retrievalDepth: 100,
+  rrfK: 60,
+  fitMode: 'default',
+  fitWeights: defaultFitWeights,
+};
+
+const semanticBaselines: Record<string, number> = {
+  acc_demo_001: 0.9,
+  acc_demo_002: 0.7,
+  acc_demo_003: 0.88,
+  acc_demo_004: 0.96,
+  acc_demo_005: 0.68,
+  acc_demo_101: 0.86,
+  acc_demo_102: 0.72,
+  acc_demo_103: 0.97,
+  acc_demo_104: 0.92,
+  acc_demo_105: 0.66,
+};
+
+const fitDimensionLabels: Record<keyof DemoFitWeights, string> = {
+  content_relevance: '内容相关性',
+  audience_fit: '受众适配度',
+  performance: '历史效果',
+  cost_efficiency: '成本效率',
+  traffic_quality: '流量质量',
+  delivery_reliability: '履约能力',
+  data_quality: '数据质量',
 };
 
 const foodSeeds: CandidateSeed[] = [
@@ -451,21 +525,146 @@ function matchesTopic(topic: string, term: string) {
   );
 }
 
+function rankByScore(
+  items: { accountId: string; score: number }[],
+): Map<string, number> {
+  return new Map(
+    [...items]
+      .sort((left, right) => right.score - left.score)
+      .map((item, index) => [item.accountId, index + 1]),
+  );
+}
+
+function effectiveFitWeights(
+  seed: CandidateSeed,
+  requested: DemoFitWeights,
+): DemoFitWeights {
+  if (seed.tier === 'COLD_START') return coldStartFitWeights;
+  if (seed.tier === 'HISTORY_SUFFICIENT') return requested;
+
+  const releasedPerformanceWeight =
+    requested.performance * (1 - seed.reliability);
+  return {
+    ...requested,
+    content_relevance:
+      requested.content_relevance + releasedPerformanceWeight * 0.4,
+    audience_fit: requested.audience_fit + releasedPerformanceWeight * 0.3,
+    performance: requested.performance * seed.reliability,
+    traffic_quality:
+      requested.traffic_quality + releasedPerformanceWeight * 0.2,
+    data_quality: requested.data_quality + releasedPerformanceWeight * 0.1,
+  };
+}
+
+function fitScore(
+  seed: CandidateSeed,
+  content: number,
+  requestedWeights: DemoFitWeights,
+) {
+  const weights = effectiveFitWeights(seed, requestedWeights);
+  const scores: DemoFitWeights = {
+    content_relevance: content,
+    audience_fit: seed.audience,
+    performance: clamp(
+      clamp(seed.roi / 2) * 0.6 + clamp(seed.engagement / 0.1) * 0.4,
+    ),
+    cost_efficiency: seed.costEfficiency,
+    traffic_quality: seed.trafficQuality,
+    delivery_reliability: seed.delivery,
+    data_quality: seed.dataQuality,
+  };
+  const entries = (Object.keys(weights) as (keyof DemoFitWeights)[]).map(
+    (name) => ({
+      name,
+      contribution: scores[name] * weights[name],
+    }),
+  );
+  const totalWeight = Object.values(weights).reduce(
+    (sum, weight) => sum + weight,
+    0,
+  );
+  return {
+    score:
+      (entries.reduce((sum, item) => sum + item.contribution, 0) /
+        totalWeight) *
+      100,
+    contributors: entries
+      .filter((item) => item.contribution > 0.000001)
+      .sort((left, right) => right.contribution - left.contribution)
+      .slice(0, 3)
+      .map((item) => fitDimensionLabels[item.name]),
+  };
+}
+
 function evaluateSeeds(
   profile: DemoCampaignProfile,
   query: string,
+  options: DemoEvaluationOptions = defaultEvaluationOptions,
 ): CandidateSeed[] {
   const expandedTerms = expandedQueryTerms(query);
-  const ranked = profile.seeds
-    .map((seed) => {
-      const matchedTopics = seed.topics.filter((topic) =>
-        expandedTerms.some((term) => matchesTopic(topic, term)),
-      );
-      const focusRelevance = matchedTopics.length
-        ? clamp(0.55 + (matchedTopics.length - 1) * 0.15)
-        : 0.1;
-      const content = clamp(seed.content * 0.4 + focusRelevance * 0.6);
-      const fit = clamp(seed.fit / 100 + (content - seed.content) * 0.3) * 100;
+  const sourceScores = profile.seeds.map((seed) => {
+    const matchedTopics = seed.topics.filter((topic) =>
+      expandedTerms.some((term) => matchesTopic(topic, term)),
+    );
+    const focusRelevance = matchedTopics.length
+      ? clamp(0.55 + (matchedTopics.length - 1) * 0.15)
+      : 0.1;
+    const keywordScore = clamp(seed.content * 0.4 + focusRelevance * 0.6);
+    const semanticFocus = matchedTopics.length
+      ? clamp(0.58 + matchedTopics.length * 0.08)
+      : 0.32;
+    const vectorScore = clamp(
+      (semanticBaselines[seed.accountId] ?? seed.content) * 0.72 +
+        semanticFocus * 0.28,
+    );
+    return { seed, matchedTopics, keywordScore, vectorScore };
+  });
+
+  const keywordRanks = rankByScore(
+    sourceScores.map(({ seed, keywordScore }) => ({
+      accountId: seed.accountId,
+      score: keywordScore,
+    })),
+  );
+  const vectorRanks = rankByScore(
+    sourceScores.map(({ seed, vectorScore }) => ({
+      accountId: seed.accountId,
+      score: vectorScore,
+    })),
+  );
+  const depth = Math.min(
+    Math.max(1, Math.round(options.retrievalDepth)),
+    profile.seeds.length,
+  );
+  const retrievalWeightTotal = options.keywordWeight + options.vectorWeight;
+  const retrieved = sourceScores
+    .filter(({ seed }) => {
+      const keywordRank = keywordRanks.get(seed.accountId) ?? Infinity;
+      const vectorRank = vectorRanks.get(seed.accountId) ?? Infinity;
+      return keywordRank <= depth || vectorRank <= depth;
+    })
+    .map((item) => {
+      const keywordRank = keywordRanks.get(item.seed.accountId)!;
+      const vectorRank = vectorRanks.get(item.seed.accountId)!;
+      const rrfScore =
+        options.keywordWeight / (options.rrfK + keywordRank) +
+        options.vectorWeight / (options.rrfK + vectorRank);
+      const blendedRelevance =
+        (item.keywordScore * options.keywordWeight +
+          item.vectorScore * options.vectorWeight) /
+        retrievalWeightTotal;
+      return { ...item, rrfScore, blendedRelevance };
+    });
+  const minRrf = Math.min(...retrieved.map((item) => item.rrfScore));
+  const maxRrf = Math.max(...retrieved.map((item) => item.rrfScore));
+
+  const ranked = retrieved
+    .map(({ seed, matchedTopics, blendedRelevance, rrfScore }) => {
+      const normalizedRrf =
+        maxRrf === minRrf ? 0.5 : (rrfScore - minRrf) / (maxRrf - minRrf);
+      const content = clamp(blendedRelevance * 0.82 + normalizedRrf * 0.18);
+      const scoring = fitScore(seed, content, options.fitWeights);
+      const fit = scoring.score;
       const transfer = clamp(
         seed.transfer + (content - seed.content) * 0.25,
         0.35,
@@ -479,12 +678,15 @@ function evaluateSeeds(
         transfer,
         expected,
         matchedTopics,
+        fitContributors: scoring.contributors,
+        hybridScore: rrfScore,
       };
     })
     .sort((left, right) => {
       if (left.risk !== right.risk) return left.risk === 'PASS' ? -1 : 1;
-      return right.fit - left.fit;
-    });
+      return right.fit - left.fit || right.hybridScore - left.hybridScore;
+    })
+    .slice(0, Math.max(1, Math.round(options.candidateCount)));
 
   let selectedCount = 0;
   return ranked.map((seed, index) => {
@@ -525,6 +727,107 @@ function profileFor(campaignId?: string): DemoCampaignProfile {
   return (
     campaignProfiles.get(campaignId ?? '') ?? campaignProfiles.get('cmp_0001')!
   );
+}
+
+function finiteNumber(value: unknown, fallback: number) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function evaluationOptions(payload: unknown): DemoEvaluationOptions {
+  const input = payload as {
+    candidate_count?: unknown;
+    retrieval_advanced?: {
+      keyword_weight?: unknown;
+      vector_weight?: unknown;
+      retrieval_depth?: unknown;
+      rrf_k?: unknown;
+    };
+    fit?: {
+      mode?: unknown;
+      weights?: Partial<Record<keyof DemoFitWeights, unknown>>;
+    };
+  };
+  const retrieval = input.retrieval_advanced ?? {};
+  const keywordWeight = Math.max(
+    0,
+    finiteNumber(
+      retrieval.keyword_weight,
+      defaultEvaluationOptions.keywordWeight,
+    ),
+  );
+  const vectorWeight = Math.max(
+    0,
+    finiteNumber(
+      retrieval.vector_weight,
+      defaultEvaluationOptions.vectorWeight,
+    ),
+  );
+  if (keywordWeight + vectorWeight <= 0) {
+    throw new Error('关键词权重与内容契合权重不能同时为0');
+  }
+
+  const fitMode = input.fit?.mode === 'custom' ? 'custom' : 'default';
+  let fitWeights = defaultFitWeights;
+  if (fitMode === 'custom') {
+    const requested = input.fit?.weights ?? {};
+    fitWeights = Object.fromEntries(
+      (Object.keys(defaultFitWeights) as (keyof DemoFitWeights)[]).map(
+        (name) => [name, Math.max(0, finiteNumber(requested[name], NaN))],
+      ),
+    ) as DemoFitWeights;
+    if (Object.values(fitWeights).some((weight) => !Number.isFinite(weight))) {
+      throw new Error('请填写完整的Fit七维权重');
+    }
+    const total = Object.values(fitWeights).reduce(
+      (sum, weight) => sum + weight,
+      0,
+    );
+    if (Math.abs(total - 1) > 0.000001) {
+      throw new Error(
+        `Fit七维权重合计必须为100%，当前为${(total * 100).toFixed(0)}%`,
+      );
+    }
+  }
+
+  return {
+    candidateCount: Math.min(
+      200,
+      Math.max(
+        1,
+        Math.round(
+          finiteNumber(
+            input.candidate_count,
+            defaultEvaluationOptions.candidateCount,
+          ),
+        ),
+      ),
+    ),
+    keywordWeight,
+    vectorWeight,
+    retrievalDepth: Math.min(
+      200,
+      Math.max(
+        1,
+        Math.round(
+          finiteNumber(
+            retrieval.retrieval_depth,
+            defaultEvaluationOptions.retrievalDepth,
+          ),
+        ),
+      ),
+    ),
+    rrfK: Math.min(
+      200,
+      Math.max(
+        1,
+        Math.round(
+          finiteNumber(retrieval.rrf_k, defaultEvaluationOptions.rrfK),
+        ),
+      ),
+    ),
+    fitMode,
+    fitWeights,
+  };
 }
 
 function evidence(
@@ -610,7 +913,7 @@ function makeCandidates(
     },
     why_this_creator: {
       dimension: 'candidate_selection',
-      statement: `该达人以业务适配度${seed.fit.toFixed(1)}分进入推荐候选，${seed.risk === 'PASS' ? '当前风险审核通过' : '存在待人工复核风险线索'}；主要优势来自内容相关性、受众适配度与流量质量。`,
+      statement: `该达人以业务适配度${seed.fit.toFixed(1)}分进入推荐候选，${seed.risk === 'PASS' ? '当前风险审核通过' : '存在待人工复核风险线索'}；本次设置下的主要贡献维度为${(seed.fitContributors ?? ['内容相关性', '受众适配度', '流量质量']).join('、')}。`,
       evidence_values: {
         fit_score: seed.fit,
         final_rank: seed.rank,
@@ -711,11 +1014,12 @@ function makeBudget(
 function makeRecommendation(
   query = '配料表',
   campaignId = 'cmp_0001',
+  options: DemoEvaluationOptions = defaultEvaluationOptions,
 ): RecommendationResponse {
   const baseProfile = profileFor(campaignId);
   const profile = {
     ...baseProfile,
-    seeds: evaluateSeeds(baseProfile, query),
+    seeds: evaluateSeeds(baseProfile, query, options),
   };
   return {
     campaign_id: profile.brief.campaign_id,
@@ -788,11 +1092,16 @@ export const demoApi = {
     const input = payload as { campaign_id?: string; query?: string };
     const query = input.query ?? '配料表';
     const baseProfile = profileFor(input.campaign_id);
+    const options = evaluationOptions(payload);
     currentProfile = {
       ...baseProfile,
-      seeds: evaluateSeeds(baseProfile, query),
+      seeds: evaluateSeeds(baseProfile, query, options),
     };
-    currentRecommendation = makeRecommendation(query, input.campaign_id);
+    currentRecommendation = makeRecommendation(
+      query,
+      input.campaign_id,
+      options,
+    );
     currentReview = null;
     return structuredClone(currentRecommendation);
   },

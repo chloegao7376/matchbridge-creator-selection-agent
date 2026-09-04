@@ -255,7 +255,11 @@ function CreatorCard({
                   )}
                   {excluded && <Badge variant="destructive">已排除</Badge>}
                   <Badge variant="secondary">
-                    {historyTierLabels[candidate.historical_data_availability.tier]}
+                    {
+                      historyTierLabels[
+                        candidate.historical_data_availability.tier
+                      ]
+                    }
                   </Badge>
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -263,9 +267,15 @@ function CreatorCard({
                 </p>
                 <p className="mt-1 text-[11px] text-muted-foreground">
                   有效历史样本量{' '}
-                  {candidate.historical_data_availability.effective_history_n.toFixed(2)}
+                  {candidate.historical_data_availability.effective_history_n.toFixed(
+                    2,
+                  )}
                   {' · '}历史可靠度{' '}
-                  {(candidate.historical_data_availability.history_reliability * 100).toFixed(0)}%
+                  {(
+                    candidate.historical_data_availability.history_reliability *
+                    100
+                  ).toFixed(0)}
+                  %
                 </p>
               </div>
             </div>
@@ -492,7 +502,7 @@ export default function Home() {
         retrieval_advanced: {
           keyword_weight: keywordWeight,
           vector_weight: vectorWeight,
-          retrieval_depth: Math.max(retrievalDepth, candidateCount),
+          retrieval_depth: retrievalDepth,
           rrf_k: rrfK,
         },
         fit,
@@ -711,7 +721,9 @@ export default function Home() {
               <Sparkles className="size-4" />
             </span>
             <div>
-              <div className="font-heading text-sm font-bold">MatchBridge 智选</div>
+              <div className="font-heading text-sm font-bold">
+                MatchBridge 智选
+              </div>
               <div className="text-[10px] tracking-[0.18em] text-muted-foreground">
                 CAMPAIGN-CREATOR MATCH
               </div>
@@ -888,6 +900,9 @@ export default function Home() {
                   loading ||
                   !campaignId ||
                   !query.trim() ||
+                  keywordWeight + vectorWeight <= 0 ||
+                  retrievalDepth < 1 ||
+                  rrfK < 1 ||
                   (fitMode === 'custom' &&
                     Math.abs(fitWeightTotal - 1) > 0.000001)
                 }
@@ -938,9 +953,13 @@ export default function Home() {
                       <NativeSelect
                         size="sm"
                         value={fitMode}
-                        onChange={(event) =>
-                          setFitMode(event.target.value as 'default' | 'custom')
-                        }
+                        onChange={(event) => {
+                          const mode = event.target.value as
+                            | 'default'
+                            | 'custom';
+                          setFitMode(mode);
+                          if (mode === 'default') setWeights(defaultWeights);
+                        }}
                       >
                         <NativeSelectOption value="default">
                           默认
@@ -982,6 +1001,9 @@ export default function Home() {
                     </p>
                   </div>
                 </div>
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  调整后请点击“生成推荐”；候选排序、Fit得分与最终组合将按当前设置重新计算。
+                </p>
               </details>
             </CardContent>
           </Card>
@@ -1057,10 +1079,13 @@ export default function Home() {
                     {Object.entries(historyTierLabels).map(([tier, label]) => (
                       <Badge key={tier} variant="outline">
                         {label}{' '}
-                        {recommendation.candidates.filter(
-                          (candidate) =>
-                            candidate.historical_data_availability.tier === tier,
-                        ).length}
+                        {
+                          recommendation.candidates.filter(
+                            (candidate) =>
+                              candidate.historical_data_availability.tier ===
+                              tier,
+                          ).length
+                        }
                       </Badge>
                     ))}
                   </div>
