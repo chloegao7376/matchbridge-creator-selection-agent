@@ -67,7 +67,7 @@ effective_history_n = Σ sample_weight
 
 分层标准
 
-| 历史数据层级 | 标准 | 处理方式 |
+| 历史数据层级 | 标准 |
 |---|---|---:|
 | 历史充分 | `effective_history_n` ≧ 3 |
 | 历史有限 | 0 < `effective_history_n` < 3 |
