@@ -91,14 +91,30 @@ flowchart LR
 优化目标为：
 
 ```text
-maximize Σ selected_i
-         × baseline_primary_kpi_i
-         × campaign_transfer_factor_i
-         × confidence_factor_i
-         − audience_overlap_penalty(S)
+maximize Σ selected_k
+         × baseline_primary_kpi_k
+         × campaign_transfer_factor_k
+         × confidence_factor_k
+         − audience_overlap_penalty
 ```
 
+Primary KPI 视品牌目标而定：
+
+| 目标 | Primary KPI |
+|---|---:|
+| 曝光（impression） | 总曝光数/总观看量 |
+| 互动（engagement） | 总互动数/总观看量 |
+| 转化（conversion） | 总转化量/总观看量 |
+
+`baseline_primary_kpi` = 近30天观看中位数 × 每位达人交付数 × Primary KPI
+
+`campaign_transfer_factor` = 内容相关性 50% + 受众适配度 35% + 流量质量 10% + 履约能力 5%
+
 `audience_overlap` 由年龄、地区、兴趣标签与性别分布构成代理估计，并不等同于平台侧真实粉丝去重；获得去重触达数据后，应替换为真正的边际 KPI 模型。
+
+```text
+audience_overlap_penalty = Σ(i<j)[audience_similarity(i,j) × min(expected_kpi_i, expected_kpi_j)] / max(creator_count - 1, 1)
+```
 
 ## 技术架构
 
