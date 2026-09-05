@@ -1,8 +1,7 @@
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:8000';
 
-export const IS_DEMO_MODE =
-  process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
+export const IS_DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
 
 export type CampaignBrief = {
   campaign_id: string;
@@ -16,6 +15,24 @@ export type CampaignBrief = {
   total_budget_cny: number;
   max_budget_per_creator_cny: number;
   creator_count: number;
+  campaign_objective?: 'awareness' | 'engagement' | 'conversion';
+  target_regions?: string[];
+  target_audience?: {
+    gender_preference: 'female' | 'male' | 'balanced';
+    primary_age_band: string;
+    interest_tags: string[];
+  };
+  tone_tags?: string[];
+  required_topics?: string[];
+  forbidden_topics?: string[];
+  content_formats?: string[];
+  deliverables_per_creator?: number;
+  preferred_creator_tiers?: string[];
+  competitor_brands?: string[];
+  competitor_exclusion_days?: number;
+  exclusivity_required_days?: number;
+  risk_tolerance?: 'low' | 'medium' | 'high';
+  brief_text?: string;
 };
 
 export type EvidenceReason = {

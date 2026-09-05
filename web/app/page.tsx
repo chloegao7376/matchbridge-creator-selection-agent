@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   ChevronDown,
   CircleDollarSign,
+  ClipboardList,
   Code2,
   FileClock,
   LayoutGrid,
@@ -207,6 +208,7 @@ type CreatorCardProps = {
   onRestore: () => void;
   onInclude: () => void;
   onRiskClear: () => void;
+  role: 'brand' | 'ops';
 };
 
 function CreatorCard({
@@ -220,11 +222,13 @@ function CreatorCard({
   onRestore,
   onInclude,
   onRiskClear,
+  role,
 }: CreatorCardProps) {
   const included = item.disposition === 'INCLUDED';
   const excluded = item.disposition === 'EXCLUDED';
   return (
     <Card
+      id={`candidate-${candidate.account_id}`}
       className={`border-0 transition-shadow ring-border ${included ? 'shadow-[0_12px_34px_rgb(24_38_45/7%)]' : 'bg-card/80'}`}
     >
       <CardContent className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(270px,.58fr)]">
@@ -248,7 +252,9 @@ function CreatorCard({
                         : 'bg-amber-50 text-amber-700'
                     }
                   >
-                    {candidate.risk_decision}
+                    {candidate.risk_decision === 'PASS'
+                      ? '可进入组合'
+                      : '需人工复核'}
                   </Badge>
                   {included && (
                     <Badge variant="outline">{statusText(item)}</Badge>
@@ -266,16 +272,13 @@ function CreatorCard({
                   {candidate.platform} · 最终排名 #{candidate.final_rank}
                 </p>
                 <p className="mt-1 text-[11px] text-muted-foreground">
-                  有效历史样本量{' '}
-                  {candidate.historical_data_availability.effective_history_n.toFixed(
-                    2,
-                  )}
-                  {' · '}历史可靠度{' '}
-                  {(
-                    candidate.historical_data_availability.history_reliability *
-                    100
-                  ).toFixed(0)}
-                  %
+                  {candidate.historical_data_availability.tier ===
+                  'HISTORY_SUFFICIENT'
+                    ? '历史表现可用于稳定估算'
+                    : candidate.historical_data_availability.tier ===
+                        'HISTORY_LIMITED'
+                      ? '已降低历史表现影响，建议人工复核'
+                      : '使用可观测稳定性信号预测'}
                 </p>
               </div>
             </div>
@@ -284,7 +287,7 @@ function CreatorCard({
                 {candidate.fit_score.toFixed(1)}
               </p>
               <p className="text-[10px] tracking-[0.08em] text-muted-foreground">
-                FIT SCORE
+                综合适配度
               </p>
             </div>
           </div>
@@ -292,10 +295,35 @@ function CreatorCard({
           <p className="mt-4 rounded-xl bg-muted/65 px-3 py-2.5 text-sm leading-6">
             {candidate.why_this_creator.statement}
           </p>
+          <div className="mt-3 grid gap-2 text-xs sm:grid-cols-3">
+            <div className="rounded-xl border border-border bg-background p-3">
+              <span className="text-muted-foreground">内容证据</span>
+              <p className="mt-1 font-medium">
+                {candidate.recommendation_reasons[0]?.statement ??
+                  '内容主题与Brief匹配'}
+              </p>
+            </div>
+            <div className="rounded-xl border border-border bg-background p-3">
+              <span className="text-muted-foreground">受众证据</span>
+              <p className="mt-1 font-medium">
+                {candidate.recommendation_reasons.find(
+                  (reason) => reason.dimension === 'audience_fit',
+                )?.statement ?? '受众画像符合目标人群'}
+              </p>
+            </div>
+            <div className="rounded-xl border border-border bg-background p-3">
+              <span className="text-muted-foreground">合作证据</span>
+              <p className="mt-1 font-medium">
+                {budgetCandidate
+                  ? `${money.format(budgetCandidate.estimated_cost_cny)} · 预计贡献${kpiNouns[budgetCandidate.primary_kpi] ?? '主KPI'} ${budgetCandidate.expected_primary_kpi.toFixed(0)}`
+                  : '报价与履约记录已纳入评估'}
+              </p>
+            </div>
+          </div>
           <Accordion className="mt-3">
             <AccordionItem value="evidence" className="border-0">
               <AccordionTrigger className="py-1.5 text-xs text-muted-foreground hover:no-underline">
-                查看七维评分与数据证据
+                查看完整评分与计算详情
               </AccordionTrigger>
               <AccordionContent className="pt-3">
                 <ScoreEvidence candidate={candidate} />
@@ -316,6 +344,18 @@ function CreatorCard({
                       注意：{note}
                     </p>
                   ))}
+                  <p className="text-[11px] leading-5 text-muted-foreground">
+                    有效历史样本量{' '}
+                    {candidate.historical_data_availability.effective_history_n.toFixed(
+                      2,
+                    )}
+                    {' · '}历史可靠度{' '}
+                    {(
+                      candidate.historical_data_availability
+                        .history_reliability * 100
+                    ).toFixed(0)}
+                    %
+                  </p>
                 </div>
               </AccordionContent>
             </AccordionItem>
@@ -348,7 +388,7 @@ function CreatorCard({
           ) : included ? (
             <p className="mt-2 text-sm leading-6 text-[#423823]">
               {budgetCandidate
-                ? `${item.locked ? '该达人由人工锁定进入组合' : '该达人由系统组合优化入选'}：预计贡献${kpiNouns[budgetCandidate.primary_kpi] ?? '主KPI'} ${budgetCandidate.expected_primary_kpi.toFixed(2)}，Campaign迁移系数 ${(budgetCandidate.campaign_transfer_factor * 100).toFixed(1)}%，置信修正系数 ${(budgetCandidate.confidence_factor * 100).toFixed(1)}%；与其他入选达人平均受众相似度 ${(budgetCandidate.average_audience_similarity_to_selected * 100).toFixed(1)}%，计入完整重叠代理影响后的估算边际目标贡献约 ${(budgetCandidate.expected_primary_kpi - budgetCandidate.overlap_penalty_contribution * 2).toFixed(2)}。`
+                ? `${item.locked ? '该达人由人工锁定进入组合' : '系统在预算、目标人数与风险约束下将其纳入组合'}。预计贡献${kpiNouns[budgetCandidate.primary_kpi] ?? '主KPI'} ${budgetCandidate.expected_primary_kpi.toFixed(0)}，报价${money.format(budgetCandidate.estimated_cost_cny)}；其内容与目标受众能补充当前组合，并已计入受众重复影响。${role === 'ops' ? ` 内部估算：迁移系数 ${(budgetCandidate.campaign_transfer_factor * 100).toFixed(0)}%，置信修正 ${(budgetCandidate.confidence_factor * 100).toFixed(0)}%。` : ''}`
                 : '该达人已被人工加入，等待组合重新计算。'}
             </p>
           ) : (
@@ -362,15 +402,19 @@ function CreatorCard({
             !excluded && (
               <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-800">
                 该达人需先完成风险复核，才可人工加入最终组合。
-                <Button
-                  disabled={busy || confirmed}
-                  onClick={onRiskClear}
-                  variant="outline"
-                  size="sm"
-                  className="mt-2 border-amber-300 bg-white"
-                >
-                  标记已复核通过
-                </Button>
+                {role === 'ops' ? (
+                  <Button
+                    disabled={busy || confirmed}
+                    onClick={onRiskClear}
+                    variant="outline"
+                    size="sm"
+                    className="mt-2 border-amber-300 bg-white"
+                  >
+                    标记已复核通过
+                  </Button>
+                ) : (
+                  <p className="mt-2 font-medium">等待运营完成风险复核</p>
+                )}
               </div>
             )}
           {item.risk_resolution === 'CLEARED' && (
@@ -437,6 +481,7 @@ function CreatorCard({
 }
 
 export default function Home() {
+  const [role, setRole] = useState<'brand' | 'ops'>('brand');
   const [briefs, setBriefs] = useState<CampaignBrief[]>([]);
   const [campaignId, setCampaignId] = useState('cmp_0001');
   const [query, setQuery] = useState('配料表');
@@ -458,6 +503,7 @@ export default function Home() {
     useState<RecommendationCandidate | null>(null);
   const [excludeReason, setExcludeReason] = useState('');
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [briefPickerOpen, setBriefPickerOpen] = useState(false);
 
   const currentBrief = briefs.find((brief) => brief.campaign_id === campaignId);
   const budget: BudgetSummary | null =
@@ -485,8 +531,22 @@ export default function Home() {
         reviewByAccount.get(candidate.account_id)?.disposition !== 'INCLUDED',
     ) ?? [];
   const confirmed = review?.status === 'CONFIRMED';
+  const pendingReviewItems =
+    review?.items.filter(
+      (item) =>
+        item.risk_decision === 'REVIEW' &&
+        item.risk_resolution === 'PENDING' &&
+        item.disposition !== 'EXCLUDED',
+    ) ?? [];
+  const eligibility =
+    campaignId === 'cmp_0002'
+      ? { total: 64, accountPlatform: 41, categoryPrice: 19, eligible: 5 }
+      : { total: 58, accountPlatform: 36, categoryPrice: 17, eligible: 5 };
 
-  async function runRecommendation(selectedCampaign = campaignId) {
+  async function runRecommendation(
+    selectedCampaign = campaignId,
+    selectedQuery = query,
+  ) {
     setLoading(true);
     setError(null);
     setNotice(null);
@@ -497,7 +557,7 @@ export default function Home() {
           : { mode: 'custom', weights };
       const result = await api.recommend({
         campaign_id: selectedCampaign,
-        query,
+        query: selectedQuery,
         candidate_count: candidateCount,
         retrieval_advanced: {
           keyword_weight: keywordWeight,
@@ -705,12 +765,8 @@ export default function Home() {
     (sum, value) => sum + value,
     0,
   );
-  const allWarnings = [
-    ...(recommendation?.warnings.map((warning) => warning.message) ?? []),
-    ...(budget?.warnings.filter(
-      (warning) => !warning.includes('audience_overlap'),
-    ) ?? []),
-  ];
+  const allWarnings =
+    recommendation?.warnings.map((warning) => warning.message) ?? [];
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -730,6 +786,24 @@ export default function Home() {
             </div>
           </div>
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <div className="flex rounded-lg border border-border bg-card p-0.5">
+              <button
+                type="button"
+                onClick={() => setRole('brand')}
+                className={`rounded-md px-2.5 py-1.5 transition-colors ${role === 'brand' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
+              >
+                <span className="hidden sm:inline">品牌方视图</span>
+                <span className="sm:hidden">品牌方</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setRole('ops')}
+                className={`rounded-md px-2.5 py-1.5 transition-colors ${role === 'ops' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
+              >
+                <span className="hidden sm:inline">运营复核视图</span>
+                <span className="sm:hidden">运营</span>
+              </button>
+            </div>
             {IS_DEMO_MODE && (
               <Badge className="hidden bg-blue-50 text-blue-700 sm:inline-flex">
                 公开演示 · 虚构数据
@@ -773,14 +847,21 @@ export default function Home() {
               href="#workspace"
             >
               <LayoutGrid className="size-4" />
-              选号工作台
+              Brief与选号
+            </a>
+            <a
+              className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-muted-foreground hover:bg-muted"
+              href="#eligibility"
+            >
+              <ShieldCheck className="size-4" />
+              准入筛选
             </a>
             <a
               className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-muted-foreground hover:bg-muted"
               href="#candidates"
             >
               <Users className="size-4" />
-              全部候选
+              候选复核
             </a>
             <a
               className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-muted-foreground hover:bg-muted"
@@ -835,6 +916,14 @@ export default function Home() {
               {confirmed ? <Check /> : <ArrowRight />}
               {confirmed ? '名单已确认' : '提交最终名单'}
             </Button>
+            <Button
+              variant="outline"
+              className="h-10 rounded-xl px-4"
+              onClick={() => setBriefPickerOpen(true)}
+            >
+              <ClipboardList />
+              发起Brief
+            </Button>
           </div>
 
           <Card className="mt-6 border-0 bg-card shadow-[0_12px_36px_rgb(24_38_45/6%)] ring-border">
@@ -882,7 +971,7 @@ export default function Home() {
                 htmlFor="candidate-count"
                 className="grid gap-2 text-xs font-semibold"
               >
-                候选人数
+                最多返回候选人数
                 <Input
                   type="number"
                   id="candidate-count"
@@ -912,101 +1001,186 @@ export default function Home() {
                 {loading ? <Loader2 className="animate-spin" /> : <RefreshCw />}
                 生成推荐
               </Button>
-              <details className="group md:col-span-4">
-                <summary className="flex cursor-pointer list-none items-center gap-1 text-xs font-medium text-muted-foreground">
-                  <SlidersHorizontal className="size-3.5" />
-                  高级设置
-                  <ChevronDown className="size-3 transition-transform group-open:rotate-180" />
-                </summary>
-                <div className="mt-4 grid gap-5 rounded-xl border border-border bg-background/70 p-4 lg:grid-cols-2">
-                  <div>
-                    <p className="mb-3 text-xs font-bold">Hybrid召回</p>
-                    <div className="grid grid-cols-2 gap-3">
-                      {[
-                        ['关键词权重', keywordWeight, setKeywordWeight],
-                        ['内容契合权重', vectorWeight, setVectorWeight],
-                        ['召回深度', retrievalDepth, setRetrievalDepth],
-                        ['RRF平滑参数', rrfK, setRrfK],
-                      ].map(([label, value, setter]) => (
-                        <label
-                          key={String(label)}
-                          className="grid gap-1.5 text-[11px] text-muted-foreground"
-                        >
-                          {String(label)}
-                          <Input
-                            type="number"
-                            step={String(label).includes('权重') ? 0.05 : 1}
-                            value={Number(value)}
-                            onChange={(event) =>
-                              (setter as (value: number) => void)(
-                                Number(event.target.value),
-                              )
-                            }
-                          />
-                        </label>
-                      ))}
+              {role === 'ops' && (
+                <details className="group md:col-span-4">
+                  <summary className="flex cursor-pointer list-none items-center gap-1 text-xs font-medium text-muted-foreground">
+                    <SlidersHorizontal className="size-3.5" />
+                    内部策略设置（高级）
+                    <ChevronDown className="size-3 transition-transform group-open:rotate-180" />
+                  </summary>
+                  <div className="mt-4 grid gap-5 rounded-xl border border-border bg-background/70 p-4 lg:grid-cols-2">
+                    <div>
+                      <p className="mb-3 text-xs font-bold">Hybrid召回</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        {[
+                          ['关键词权重', keywordWeight, setKeywordWeight],
+                          ['内容契合权重', vectorWeight, setVectorWeight],
+                          ['召回深度', retrievalDepth, setRetrievalDepth],
+                          ['RRF平滑参数', rrfK, setRrfK],
+                        ].map(([label, value, setter]) => (
+                          <label
+                            key={String(label)}
+                            className="grid gap-1.5 text-[11px] text-muted-foreground"
+                          >
+                            {String(label)}
+                            <Input
+                              type="number"
+                              step={String(label).includes('权重') ? 0.05 : 1}
+                              value={Number(value)}
+                              onChange={(event) =>
+                                (setter as (value: number) => void)(
+                                  Number(event.target.value),
+                                )
+                              }
+                            />
+                          </label>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                  <div>
-                    <div className="mb-3 flex items-center justify-between">
-                      <p className="text-xs font-bold">Fit七维权重</p>
-                      <NativeSelect
-                        size="sm"
-                        value={fitMode}
-                        onChange={(event) => {
-                          const mode = event.target.value as
-                            | 'default'
-                            | 'custom';
-                          setFitMode(mode);
-                          if (mode === 'default') setWeights(defaultWeights);
-                        }}
+                    <div>
+                      <div className="mb-3 flex items-center justify-between">
+                        <p className="text-xs font-bold">Fit七维权重</p>
+                        <NativeSelect
+                          size="sm"
+                          value={fitMode}
+                          onChange={(event) => {
+                            const mode = event.target.value as
+                              | 'default'
+                              | 'custom';
+                            setFitMode(mode);
+                            if (mode === 'default') setWeights(defaultWeights);
+                          }}
+                        >
+                          <NativeSelectOption value="default">
+                            默认
+                          </NativeSelectOption>
+                          <NativeSelectOption value="custom">
+                            自定义
+                          </NativeSelectOption>
+                        </NativeSelect>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {Object.entries(weights).map(([name, value]) => (
+                          <label
+                            key={name}
+                            className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground"
+                          >
+                            <span>{dimensionLabels[name]}</span>
+                            <Input
+                              disabled={fitMode === 'default'}
+                              type="number"
+                              min={0}
+                              max={1}
+                              step={0.05}
+                              value={value}
+                              onChange={(event) =>
+                                setWeights((current) => ({
+                                  ...current,
+                                  [name]: Number(event.target.value),
+                                }))
+                              }
+                              className="w-20"
+                            />
+                          </label>
+                        ))}
+                      </div>
+                      <p
+                        className={`mt-2 text-right text-[11px] ${Math.abs(fitWeightTotal - 1) < 0.000001 ? 'text-emerald-700' : 'text-red-600'}`}
                       >
-                        <NativeSelectOption value="default">
-                          默认
-                        </NativeSelectOption>
-                        <NativeSelectOption value="custom">
-                          自定义
-                        </NativeSelectOption>
-                      </NativeSelect>
+                        权重合计 {(fitWeightTotal * 100).toFixed(0)}%
+                      </p>
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      {Object.entries(weights).map(([name, value]) => (
-                        <label
-                          key={name}
-                          className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground"
-                        >
-                          <span>{dimensionLabels[name]}</span>
-                          <Input
-                            disabled={fitMode === 'default'}
-                            type="number"
-                            min={0}
-                            max={1}
-                            step={0.05}
-                            value={value}
-                            onChange={(event) =>
-                              setWeights((current) => ({
-                                ...current,
-                                [name]: Number(event.target.value),
-                              }))
-                            }
-                            className="w-20"
-                          />
-                        </label>
-                      ))}
-                    </div>
-                    <p
-                      className={`mt-2 text-right text-[11px] ${Math.abs(fitWeightTotal - 1) < 0.000001 ? 'text-emerald-700' : 'text-red-600'}`}
-                    >
-                      权重合计 {(fitWeightTotal * 100).toFixed(0)}%
-                    </p>
                   </div>
-                </div>
-                <p className="mt-2 text-[11px] text-muted-foreground">
-                  调整后请点击“生成推荐”；候选排序、Fit得分与最终组合将按当前设置重新计算。
-                </p>
-              </details>
+                  <p className="mt-2 text-[11px] text-muted-foreground">
+                    调整后请点击“生成推荐”；候选排序、Fit得分与最终组合将按当前设置重新计算。
+                  </p>
+                </details>
+              )}
             </CardContent>
           </Card>
+
+          {currentBrief && (
+            <Accordion
+              defaultValue={['brief']}
+              className="mt-4 rounded-2xl border border-border bg-card px-5"
+            >
+              <AccordionItem value="brief" className="border-0">
+                <AccordionTrigger className="hover:no-underline">
+                  <span className="text-left">
+                    <span className="block text-sm font-bold">
+                      Campaign Brief
+                    </span>
+                    <span className="mt-1 block text-xs font-normal text-muted-foreground">
+                      目标、受众、内容要求与合作约束
+                    </span>
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="grid gap-4 border-t border-border pt-4 text-xs md:grid-cols-2 xl:grid-cols-4">
+                    <div>
+                      <p className="text-muted-foreground">业务目标</p>
+                      <p className="mt-1 font-medium">
+                        {currentBrief.brief_text ??
+                          kpiLabels[currentBrief.primary_kpi]}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">目标受众</p>
+                      <p className="mt-1 font-medium">
+                        {currentBrief.target_audience?.primary_age_band.replace(
+                          '_',
+                          '–',
+                        ) ?? '未填写'}{' '}
+                        ·{' '}
+                        {currentBrief.target_audience?.interest_tags.join('、')}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">内容要求</p>
+                      <p className="mt-1 font-medium">
+                        {currentBrief.required_topics?.join('、') || '未填写'} ·{' '}
+                        {currentBrief.content_formats?.join(' / ')}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">预算与排期</p>
+                      <p className="mt-1 font-medium">
+                        总预算 {money.format(currentBrief.total_budget_cny)} ·{' '}
+                        {currentBrief.campaign_start_at.slice(0, 10)} 至{' '}
+                        {currentBrief.campaign_end_at.slice(0, 10)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">品牌调性</p>
+                      <p className="mt-1 font-medium">
+                        {currentBrief.tone_tags?.join('、') || '未填写'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">禁用表达</p>
+                      <p className="mt-1 font-medium text-amber-700">
+                        {currentBrief.forbidden_topics?.join('、') || '无'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">竞品约束</p>
+                      <p className="mt-1 font-medium">
+                        {currentBrief.competitor_brands?.join('、') || '无'} ·
+                        冷却 {currentBrief.competitor_exclusion_days ?? 0} 天
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">交付要求</p>
+                      <p className="mt-1 font-medium">
+                        每位 {currentBrief.deliverables_per_creator ?? 1} 条 ·
+                        排他 {currentBrief.exclusivity_required_days ?? 0} 天
+                      </p>
+                    </div>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          )}
 
           {error && (
             <div className="mt-4 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
@@ -1032,6 +1206,65 @@ export default function Home() {
             </div>
           ) : budget && recommendation && review ? (
             <>
+              <section
+                id="eligibility"
+                className="mt-6 rounded-2xl border border-border bg-card p-5 shadow-[0_5px_18px_rgb(24_38_45/4%)]"
+              >
+                <div className="flex flex-wrap items-end justify-between gap-3">
+                  <div>
+                    <h2 className="font-heading text-lg font-bold">
+                      业务准入筛选
+                    </h2>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      先排除不满足账号、平台、品类、报价及风险约束的达人，再进行匹配与组合优化。
+                    </p>
+                  </div>
+                  <Badge className="bg-emerald-50 text-emerald-700">
+                    {recommendation.candidates.length} 位进入评分
+                  </Badge>
+                </div>
+                <div className="mt-4 grid gap-2 md:grid-cols-4">
+                  {[
+                    ['达人库', eligibility.total, '本Campaign可检索账号'],
+                    [
+                      '账号与平台有效',
+                      eligibility.accountPlatform,
+                      '账号有效、平台匹配',
+                    ],
+                    [
+                      '品类与报价合格',
+                      eligibility.categoryPrice,
+                      '品类匹配且报价在限额内',
+                    ],
+                    [
+                      '风险与竞品检查通过',
+                      recommendation.candidates.length,
+                      '无BLOCK风险及冲突窗口',
+                    ],
+                  ].map(([label, value, note], index) => (
+                    <div
+                      key={String(label)}
+                      className="relative rounded-xl bg-muted/60 p-3"
+                    >
+                      <p className="text-[11px] text-muted-foreground">
+                        步骤 {index + 1}
+                      </p>
+                      <p className="mt-1 text-sm font-bold">
+                        {String(label)} · {String(value)} 位
+                      </p>
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        {String(note)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-3 text-[11px] text-muted-foreground">
+                  最多返回 {candidateCount} 位；本次共有{' '}
+                  {recommendation.candidates.length}{' '}
+                  位完成准入与评分。演示数据仅展示代表性候选。
+                </p>
+              </section>
+
               <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <MetricCard
                   label="最终组合"
@@ -1094,7 +1327,7 @@ export default function Home() {
 
               {allWarnings.length > 0 && (
                 <section
-                  id="warnings"
+                  id="query-warnings"
                   className="mt-5 rounded-2xl border border-amber-200 bg-amber-50/80 p-4"
                 >
                   <div className="flex items-center gap-2 text-sm font-bold text-amber-900">
@@ -1109,18 +1342,74 @@ export default function Home() {
                 </section>
               )}
 
+              <section
+                id="warnings"
+                className="mt-5 rounded-2xl border border-border bg-card p-4"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-sm font-bold">复核任务</h2>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      查询提醒与候选风险分开处理，避免遗漏待办。
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Badge
+                      className={
+                        allWarnings.length
+                          ? 'bg-blue-50 text-blue-700'
+                          : 'bg-emerald-50 text-emerald-700'
+                      }
+                    >
+                      查询提醒 {allWarnings.length}
+                    </Badge>
+                    <Badge
+                      className={
+                        pendingReviewItems.length
+                          ? 'bg-amber-50 text-amber-700'
+                          : 'bg-emerald-50 text-emerald-700'
+                      }
+                    >
+                      待风险复核 {pendingReviewItems.length}
+                    </Badge>
+                  </div>
+                </div>
+                {pendingReviewItems.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {pendingReviewItems.map((item) => (
+                      <a
+                        key={item.account_id}
+                        href={`#candidate-${item.account_id}`}
+                        className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 hover:bg-amber-100"
+                      >
+                        前往复核 {item.handle}
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </section>
+
               <div className="mt-8 flex items-end justify-between">
                 <div>
                   <h2 className="font-heading text-xl font-bold">
                     最终推荐组合
                   </h2>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    锁定达人不会在重新计算时被移出 · 受众重叠为代理估计
+                    在总预算、目标人数与风险约束下，优先提升品牌预期主KPI贡献
                   </p>
                 </div>
                 <Badge variant="outline">{includedCandidates.length} 位</Badge>
               </div>
               <div className="mt-4 space-y-4">
+                <div className="rounded-2xl border border-[#ddcda8] bg-[#f8f2e6] p-4 text-sm leading-6 text-[#4b4029]">
+                  <strong>为什么是这组达人：</strong>
+                  组合覆盖“{currentBrief?.required_topics?.join(' / ') || query}
+                  ”等核心内容方向，兼顾目标受众、报价效率与履约稳定性；预计合计贡献{' '}
+                  {budget.selected_total_expected_primary_kpi.toFixed(0)}{' '}
+                  {kpiNouns[budget.primary_kpi] ?? '主KPI'}
+                  ，扣除受众重复代理估计后约{' '}
+                  {budget.overlap_adjusted_expected_primary_kpi.toFixed(0)}。
+                </div>
                 {includedCandidates.map((candidate) => {
                   const item = reviewByAccount.get(candidate.account_id)!;
                   return (
@@ -1161,6 +1450,7 @@ export default function Home() {
                           reason: '人工复核通过',
                         })
                       }
+                      role={role}
                     />
                   );
                 })}
@@ -1219,6 +1509,7 @@ export default function Home() {
                             reason: '人工复核通过',
                           })
                         }
+                        role={role}
                       />
                     );
                   })}
@@ -1228,6 +1519,49 @@ export default function Home() {
           ) : null}
         </section>
       </div>
+
+      <Dialog open={briefPickerOpen} onOpenChange={setBriefPickerOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>发起 Campaign Brief</DialogTitle>
+            <DialogDescription>
+              公开演示提供两套完整的虚构Brief。选择后可查看准入、推荐与人工确认全链路。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3">
+            {briefs.map((brief) => {
+              const focus =
+                brief.campaign_id === 'cmp_0002' ? '敏感肌修护' : '配料表';
+              return (
+                <button
+                  key={brief.campaign_id}
+                  type="button"
+                  className="rounded-xl border border-border p-4 text-left transition-colors hover:border-primary hover:bg-muted/50"
+                  onClick={() => {
+                    setCampaignId(brief.campaign_id);
+                    setQuery(focus);
+                    setBriefPickerOpen(false);
+                    void runRecommendation(brief.campaign_id, focus);
+                  }}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <strong>{brief.product_name}</strong>
+                    <Badge variant="outline">{brief.product_category}</Badge>
+                  </div>
+                  <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                    {brief.brief_text}
+                  </p>
+                  <p className="mt-2 text-xs font-medium">
+                    目标：{kpiLabels[brief.primary_kpi]} · 预算{' '}
+                    {money.format(brief.total_budget_cny)} ·{' '}
+                    {brief.creator_count} 位达人
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={excludeTarget !== null}
@@ -1283,6 +1617,50 @@ export default function Home() {
               <strong>
                 {budget ? money.format(budget.selected_total_cost_cny) : '—'}
               </strong>
+            </div>
+            <div className="mt-4 space-y-2 border-t border-border pt-3 text-xs">
+              <p className="flex items-center justify-between">
+                <span>人数达到Brief目标</span>
+                <strong
+                  className={
+                    budget?.staffing_status === 'FULL'
+                      ? 'text-emerald-700'
+                      : 'text-amber-700'
+                  }
+                >
+                  {budget?.staffing_status === 'FULL' ? '已通过' : '需确认'}
+                </strong>
+              </p>
+              <p className="flex items-center justify-between">
+                <span>组合报价未超过总预算</span>
+                <strong className="text-emerald-700">已通过</strong>
+              </p>
+              <p className="flex items-center justify-between">
+                <span>入选达人风险复核</span>
+                <strong
+                  className={
+                    includedCandidates.some(
+                      (candidate) =>
+                        reviewByAccount.get(candidate.account_id)
+                          ?.risk_resolution === 'PENDING',
+                    )
+                      ? 'text-amber-700'
+                      : 'text-emerald-700'
+                  }
+                >
+                  {includedCandidates.some(
+                    (candidate) =>
+                      reviewByAccount.get(candidate.account_id)
+                        ?.risk_resolution === 'PENDING',
+                  )
+                    ? '存在待办'
+                    : '已通过'}
+                </strong>
+              </p>
+              <p className="flex items-center justify-between">
+                <span>排除原因与人工操作已留痕</span>
+                <strong className="text-emerald-700">已记录</strong>
+              </p>
             </div>
           </div>
           <DialogFooter>
