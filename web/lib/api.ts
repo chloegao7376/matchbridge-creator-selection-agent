@@ -62,6 +62,28 @@ export type RecommendationCandidate = {
   why_in_final_combination: EvidenceReason | null;
   recommendation_reasons: EvidenceReason[];
   business_notes: string[];
+  evidence_snapshot?: {
+    matched_content_tags: string[];
+    missing_required_tags: string[];
+    audience_gender: { female: number; male: number };
+    target_age_band: string;
+    target_age_share: number;
+    matched_interest_tags: string[];
+    engagement_rate_30d: number | null;
+    engagement_benchmark_rate: number | null;
+    engagement_vs_benchmark_pct: number | null;
+    historical_roi: number | null;
+    on_time_delivery_rate: number | null;
+    estimated_cost_cny: number;
+    single_creator_budget_share: number;
+    risk_events: {
+      type: string;
+      severity: 'LOW' | 'MEDIUM' | 'HIGH';
+      observed_at: string;
+      expires_at: string;
+      message: string;
+    }[];
+  };
 };
 
 export type BudgetCandidate = {

@@ -119,6 +119,66 @@ type DemoCampaignProfile = {
   kpiLabel: string;
 };
 
+const audienceProfiles: Record<
+  string,
+  {
+    female: number;
+    age: number;
+    interests: string[];
+  }
+> = {
+  acc_demo_001: {
+    female: 0.68,
+    age: 0.57,
+    interests: ['健康饮食', '高蛋白', '早餐'],
+  },
+  acc_demo_002: {
+    female: 0.74,
+    age: 0.51,
+    interests: ['食品成分', '理性消费'],
+  },
+  acc_demo_003: {
+    female: 0.81,
+    age: 0.63,
+    interests: ['轻食早餐', '体重管理'],
+  },
+  acc_demo_004: {
+    female: 0.61,
+    age: 0.59,
+    interests: ['通勤早餐', '品质生活'],
+  },
+  acc_demo_005: {
+    female: 0.66,
+    age: 0.44,
+    interests: ['新品尝鲜', '食品测评'],
+  },
+  acc_demo_101: {
+    female: 0.92,
+    age: 0.64,
+    interests: ['敏感肌', '功效护肤', '成分护肤'],
+  },
+  acc_demo_102: {
+    female: 0.86,
+    age: 0.55,
+    interests: ['成分护肤', '功效验证'],
+  },
+  acc_demo_103: {
+    female: 0.89,
+    age: 0.61,
+    interests: ['换季修护', '科学护肤'],
+  },
+  acc_demo_104: {
+    female: 0.94,
+    age: 0.58,
+    interests: ['屏障修护', '干敏泛红'],
+  },
+  acc_demo_105: {
+    female: 0.83,
+    age: 0.42,
+    interests: ['新品尝鲜', '学生护肤'],
+  },
+};
+
 type DemoFitWeights = {
   content_relevance: number;
   audience_fit: number;
@@ -932,61 +992,115 @@ function evidence(
 function makeCandidates(
   profile: DemoCampaignProfile,
 ): RecommendationCandidate[] {
-  return profile.seeds.map((seed) => ({
-    account_id: seed.accountId,
-    creator_id: seed.creatorId,
-    handle: seed.handle,
-    platform: seed.platform,
-    final_rank: seed.rank,
-    fit_score: seed.fit,
-    risk_decision: seed.risk,
-    selected_in_budget_plan: seed.selected,
-    historical_data_availability: {
-      tier: seed.tier,
-      tier_label: seed.tierLabel,
-      effective_history_n: seed.effectiveN,
-      history_reliability: seed.reliability,
-      valid_history_count: Math.round(seed.effectiveN),
-      primary_kpi: profile.brief.primary_kpi,
-    },
-    why_this_creator: {
-      dimension: 'candidate_selection',
-      statement: `该达人以业务适配度${seed.fit.toFixed(1)}分进入推荐候选，${seed.risk === 'PASS' ? '当前风险审核通过' : '存在待人工复核风险线索'}；本次设置下的主要贡献维度为${(seed.fitContributors ?? ['内容相关性', '受众适配度', '流量质量']).join('、')}。`,
-      evidence_values: {
-        fit_score: seed.fit,
-        final_rank: seed.rank,
-        risk_decision: seed.risk,
+  return profile.seeds.map((seed) => {
+    const audienceProfile = audienceProfiles[seed.accountId];
+    const benchmark =
+      profile.brief.product_category === '食品饮料' ? 0.052 : 0.061;
+    const coldStart = seed.tier === 'COLD_START';
+    const matched = seed.topics;
+    const required = profile.brief.required_topics ?? [];
+    const missing = required.filter(
+      (topic) =>
+        !matched.some(
+          (tag) =>
+            topic.includes(tag) ||
+            tag.includes(topic.replace(/解读|场景|护理/g, '')),
+        ),
+    );
+    return {
+      account_id: seed.accountId,
+      creator_id: seed.creatorId,
+      handle: seed.handle,
+      platform: seed.platform,
+      final_rank: seed.rank,
+      fit_score: seed.fit,
+      risk_decision: seed.risk,
+      selected_in_budget_plan: seed.selected,
+      historical_data_availability: {
+        tier: seed.tier,
+        tier_label: seed.tierLabel,
+        effective_history_n: seed.effectiveN,
+        history_reliability: seed.reliability,
+        valid_history_count: Math.round(seed.effectiveN),
+        primary_kpi: profile.brief.primary_kpi,
       },
-    },
-    why_in_final_combination: seed.selected
-      ? {
-          dimension: 'portfolio_selection',
-          statement: `该达人进入最终组合：预计贡献${profile.kpiLabel}${seed.expected.toFixed(0)}，Campaign迁移系数${(seed.transfer * 100).toFixed(1)}%，置信修正系数${(seed.confidence * 100).toFixed(1)}%；在预算约束下可提升组合预期收益。`,
-          evidence_values: {
-            expected_primary_kpi: seed.expected,
-            campaign_transfer_factor: seed.transfer,
-            confidence_factor: seed.confidence,
-          },
-        }
-      : null,
-    recommendation_reasons: evidence(seed),
-    business_notes: [
-      '内容契合度为系统初筛结果，最终合作前需人工确认。',
-      ...(seed.tier === 'HISTORY_LIMITED'
-        ? [
-            '历史数据有限，已降低历史效果权重并提高稳定性信号权重，建议人工复核。',
-          ]
-        : seed.tier === 'COLD_START'
-          ? ['该达人为完全冷启动，不自动进入预算组合，建议人工复核。']
+      why_this_creator: {
+        dimension: 'candidate_selection',
+        statement: `该达人以业务适配度${seed.fit.toFixed(1)}分进入推荐候选，${seed.risk === 'PASS' ? '当前风险审核通过' : '存在待人工复核风险线索'}；本次设置下的主要贡献维度为${(seed.fitContributors ?? ['内容相关性', '受众适配度', '流量质量']).join('、')}。`,
+        evidence_values: {
+          fit_score: seed.fit,
+          final_rank: seed.rank,
+          risk_decision: seed.risk,
+        },
+      },
+      why_in_final_combination: seed.selected
+        ? {
+            dimension: 'portfolio_selection',
+            statement: `该达人进入最终组合：预计贡献${profile.kpiLabel}${seed.expected.toFixed(0)}，Campaign迁移系数${(seed.transfer * 100).toFixed(1)}%，置信修正系数${(seed.confidence * 100).toFixed(1)}%；在预算约束下可提升组合预期收益。`,
+            evidence_values: {
+              expected_primary_kpi: seed.expected,
+              campaign_transfer_factor: seed.transfer,
+              confidence_factor: seed.confidence,
+            },
+          }
+        : null,
+      recommendation_reasons: evidence(seed),
+      business_notes: [
+        '内容契合度为系统初筛结果，最终合作前需人工确认。',
+        ...(seed.tier === 'HISTORY_LIMITED'
+          ? [
+              '历史数据有限，已降低历史效果权重并提高稳定性信号权重，建议人工复核。',
+            ]
+          : seed.tier === 'COLD_START'
+            ? ['该达人为完全冷启动，不自动进入预算组合，建议人工复核。']
+            : []),
+        ...(seed.risk === 'REVIEW'
+          ? ['该达人存在待复核风险线索，合作前需完成人工审核。']
           : []),
-      ...(seed.risk === 'REVIEW'
-        ? ['该达人存在待复核风险线索，合作前需完成人工审核。']
-        : []),
-      ...(seed.matchedTopics?.length === 0
-        ? ['本次关注点与该达人近期主题命中较弱，建议人工确认内容契合度。']
-        : []),
-    ],
-  }));
+        ...(seed.matchedTopics?.length === 0
+          ? ['本次关注点与该达人近期主题命中较弱，建议人工确认内容契合度。']
+          : []),
+      ],
+      evidence_snapshot: {
+        matched_content_tags: matched,
+        missing_required_tags: missing,
+        audience_gender: {
+          female: audienceProfile?.female ?? 0.7,
+          male: 1 - (audienceProfile?.female ?? 0.7),
+        },
+        target_age_band:
+          profile.brief.target_audience?.primary_age_band ?? '25_34',
+        target_age_share:
+          audienceProfile?.age ?? Math.min(seed.audience * 0.76, 0.72),
+        matched_interest_tags: audienceProfile?.interests ?? [],
+        engagement_rate_30d: coldStart ? null : seed.engagement,
+        engagement_benchmark_rate: coldStart ? null : benchmark,
+        engagement_vs_benchmark_pct: coldStart
+          ? null
+          : (seed.engagement - benchmark) / benchmark,
+        historical_roi: coldStart ? null : seed.roi,
+        on_time_delivery_rate: coldStart ? null : seed.delivery,
+        estimated_cost_cny: seed.cost,
+        single_creator_budget_share:
+          seed.cost / profile.brief.max_budget_per_creator_cny,
+        risk_events:
+          seed.risk === 'REVIEW'
+            ? [
+                {
+                  type: '内容合规',
+                  severity: 'MEDIUM',
+                  observed_at: '2026-08-20',
+                  expires_at: '2026-11-20',
+                  message:
+                    profile.brief.product_category === '食品饮料'
+                      ? '近期测评内容出现未经充分限定的功效表述，需确认合作稿件措辞。'
+                      : '近期护肤内容出现绝对化功效表述，需确认合作稿件合规边界。',
+                },
+              ]
+            : [],
+      },
+    };
+  });
 }
 
 function makeBudget(

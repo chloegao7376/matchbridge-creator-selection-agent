@@ -208,7 +208,6 @@ type CreatorCardProps = {
   onRestore: () => void;
   onInclude: () => void;
   onRiskClear: () => void;
-  role: 'brand' | 'ops';
 };
 
 function CreatorCard({
@@ -222,10 +221,11 @@ function CreatorCard({
   onRestore,
   onInclude,
   onRiskClear,
-  role,
 }: CreatorCardProps) {
   const included = item.disposition === 'INCLUDED';
   const excluded = item.disposition === 'EXCLUDED';
+  const snapshot = candidate.evidence_snapshot;
+  const ageLabel = snapshot?.target_age_band.replace('_', '–') ?? '目标年龄段';
   return (
     <Card
       id={`candidate-${candidate.account_id}`}
@@ -292,32 +292,142 @@ function CreatorCard({
             </div>
           </div>
 
-          <p className="mt-4 rounded-xl bg-muted/65 px-3 py-2.5 text-sm leading-6">
-            {candidate.why_this_creator.statement}
-          </p>
-          <div className="mt-3 grid gap-2 text-xs sm:grid-cols-3">
-            <div className="rounded-xl border border-border bg-background p-3">
-              <span className="text-muted-foreground">内容证据</span>
-              <p className="mt-1 font-medium">
-                {candidate.recommendation_reasons[0]?.statement ??
-                  '内容主题与Brief匹配'}
-              </p>
-            </div>
-            <div className="rounded-xl border border-border bg-background p-3">
-              <span className="text-muted-foreground">受众证据</span>
-              <p className="mt-1 font-medium">
-                {candidate.recommendation_reasons.find(
-                  (reason) => reason.dimension === 'audience_fit',
-                )?.statement ?? '受众画像符合目标人群'}
-              </p>
-            </div>
-            <div className="rounded-xl border border-border bg-background p-3">
-              <span className="text-muted-foreground">合作证据</span>
-              <p className="mt-1 font-medium">
-                {budgetCandidate
-                  ? `${money.format(budgetCandidate.estimated_cost_cny)} · 预计贡献${kpiNouns[budgetCandidate.primary_kpi] ?? '主KPI'} ${budgetCandidate.expected_primary_kpi.toFixed(0)}`
-                  : '报价与履约记录已纳入评估'}
-              </p>
+          <div className="mt-4 rounded-2xl border border-border bg-background p-4">
+            <p className="text-xs font-bold">可核验的推荐证据</p>
+            <div className="mt-3 grid gap-4 lg:grid-cols-[1fr_1.15fr_1fr]">
+              <div>
+                <p className="text-[11px] text-muted-foreground">
+                  内容标签匹配
+                </p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {(snapshot?.matched_content_tags ?? []).map((tag) => (
+                    <Badge key={tag} className="bg-emerald-50 text-emerald-700">
+                      ✓ {tag}
+                    </Badge>
+                  ))}
+                  {(snapshot?.missing_required_tags ?? [])
+                    .slice(0, 2)
+                    .map((tag) => (
+                      <Badge key={tag} variant="secondary">
+                        Brief要求未命中 · {tag}
+                      </Badge>
+                    ))}
+                  {!snapshot?.matched_content_tags.length && (
+                    <span className="text-xs text-muted-foreground">
+                      暂无明确标签命中
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div>
+                <p className="text-[11px] text-muted-foreground">受众画像</p>
+                {snapshot ? (
+                  <>
+                    <div className="mt-2 flex justify-between text-xs">
+                      <span>
+                        女性{' '}
+                        {(snapshot.audience_gender.female * 100).toFixed(0)}%
+                      </span>
+                      <span>
+                        男性 {(snapshot.audience_gender.male * 100).toFixed(0)}%
+                      </span>
+                    </div>
+                    <div className="mt-1.5 flex h-2 overflow-hidden rounded-full bg-slate-200">
+                      <span
+                        className="bg-[#d796a8]"
+                        style={{
+                          width: `${snapshot.audience_gender.female * 100}%`,
+                        }}
+                      />
+                      <span
+                        className="bg-[#8eb1c7]"
+                        style={{
+                          width: `${snapshot.audience_gender.male * 100}%`,
+                        }}
+                      />
+                    </div>
+                    <div className="mt-3 flex items-center gap-3">
+                      <span className="w-20 shrink-0 text-xs">
+                        {ageLabel} 岁
+                      </span>
+                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+                        <div
+                          className="h-full rounded-full bg-primary"
+                          style={{
+                            width: `${snapshot.target_age_share * 100}%`,
+                          }}
+                        />
+                      </div>
+                      <strong className="text-xs">
+                        {(snapshot.target_age_share * 100).toFixed(0)}%
+                      </strong>
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {snapshot.matched_interest_tags.map((tag) => (
+                        <Badge key={tag} variant="outline">
+                          {tag}
+                        </Badge>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    本次结果未返回受众分布明细
+                  </p>
+                )}
+              </div>
+              <div>
+                <p className="text-[11px] text-muted-foreground">
+                  历史表现与成本
+                </p>
+                {snapshot?.engagement_rate_30d != null &&
+                snapshot.engagement_benchmark_rate != null ? (
+                  <p className="mt-2 text-sm font-semibold">
+                    近30日互动率{' '}
+                    {(snapshot.engagement_rate_30d * 100).toFixed(1)}%{' '}
+                    <Badge
+                      className={
+                        snapshot.engagement_rate_30d >=
+                        snapshot.engagement_benchmark_rate
+                          ? 'bg-emerald-50 text-emerald-700'
+                          : 'bg-amber-50 text-amber-700'
+                      }
+                    >
+                      {snapshot.engagement_vs_benchmark_pct != null &&
+                      snapshot.engagement_vs_benchmark_pct >= 0
+                        ? '高于'
+                        : '低于'}
+                      同品类均值{' '}
+                      {Math.abs(
+                        (snapshot.engagement_vs_benchmark_pct ?? 0) * 100,
+                      ).toFixed(0)}
+                      %
+                    </Badge>
+                  </p>
+                ) : (
+                  <p className="mt-2 text-sm font-semibold">
+                    暂无可靠历史效果数据
+                  </p>
+                )}
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {snapshot?.historical_roi != null
+                    ? `历史平均 ROI ${snapshot.historical_roi.toFixed(2)}`
+                    : '冷启动达人采用稳定性信号预测'}
+                </p>
+                <p className="mt-1 text-xs">
+                  报价{' '}
+                  {money.format(
+                    snapshot?.estimated_cost_cny ??
+                      budgetCandidate?.estimated_cost_cny ??
+                      0,
+                  )}{' '}
+                  · 占单人预算上限{' '}
+                  {((snapshot?.single_creator_budget_share ?? 0) * 100).toFixed(
+                    0,
+                  )}
+                  %
+                </p>
+              </div>
             </div>
           </div>
           <Accordion className="mt-3">
@@ -388,7 +498,7 @@ function CreatorCard({
           ) : included ? (
             <p className="mt-2 text-sm leading-6 text-[#423823]">
               {budgetCandidate
-                ? `${item.locked ? '该达人由人工锁定进入组合' : '系统在预算、目标人数与风险约束下将其纳入组合'}。预计贡献${kpiNouns[budgetCandidate.primary_kpi] ?? '主KPI'} ${budgetCandidate.expected_primary_kpi.toFixed(0)}，报价${money.format(budgetCandidate.estimated_cost_cny)}；其内容与目标受众能补充当前组合，并已计入受众重复影响。${role === 'ops' ? ` 内部估算：迁移系数 ${(budgetCandidate.campaign_transfer_factor * 100).toFixed(0)}%，置信修正 ${(budgetCandidate.confidence_factor * 100).toFixed(0)}%。` : ''}`
+                ? `${item.locked ? '该达人由人工锁定进入组合' : '系统在预算、目标人数与风险约束下将其纳入组合'}。预计贡献${kpiNouns[budgetCandidate.primary_kpi] ?? '主KPI'} ${budgetCandidate.expected_primary_kpi.toFixed(0)}，报价${money.format(budgetCandidate.estimated_cost_cny)}；其内容与目标受众能补充当前组合，并已计入受众重复影响。`
                 : '该达人已被人工加入，等待组合重新计算。'}
             </p>
           ) : (
@@ -401,20 +511,42 @@ function CreatorCard({
             item.risk_resolution !== 'CLEARED' &&
             !excluded && (
               <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-800">
-                该达人需先完成风险复核，才可人工加入最终组合。
-                {role === 'ops' ? (
-                  <Button
-                    disabled={busy || confirmed}
-                    onClick={onRiskClear}
-                    variant="outline"
-                    size="sm"
-                    className="mt-2 border-amber-300 bg-white"
-                  >
-                    标记已复核通过
-                  </Button>
-                ) : (
-                  <p className="mt-2 font-medium">等待运营完成风险复核</p>
-                )}
+                <details>
+                  <summary className="cursor-pointer font-bold">
+                    查看风险触发详情
+                  </summary>
+                  {(snapshot?.risk_events ?? []).map((event) => (
+                    <div
+                      key={`${event.type}-${event.observed_at}`}
+                      className="mt-2 border-t border-amber-200 pt-2"
+                    >
+                      <p>
+                        {event.type} ·{' '}
+                        {event.severity === 'HIGH'
+                          ? '高风险'
+                          : event.severity === 'MEDIUM'
+                            ? '中风险'
+                            : '低风险'}
+                      </p>
+                      <p>{event.message}</p>
+                      <p className="text-[11px]">
+                        观察时间 {event.observed_at} · 有效至 {event.expires_at}
+                      </p>
+                    </div>
+                  ))}
+                </details>
+                <p className="mt-2">
+                  该达人需先完成人工复核，才可加入最终组合。
+                </p>
+                <Button
+                  disabled={busy || confirmed}
+                  onClick={onRiskClear}
+                  variant="outline"
+                  size="sm"
+                  className="mt-2 border-amber-300 bg-white"
+                >
+                  标记已复核通过
+                </Button>
               </div>
             )}
           {item.risk_resolution === 'CLEARED' && (
@@ -481,7 +613,6 @@ function CreatorCard({
 }
 
 export default function Home() {
-  const [role, setRole] = useState<'brand' | 'ops'>('brand');
   const [briefs, setBriefs] = useState<CampaignBrief[]>([]);
   const [campaignId, setCampaignId] = useState('cmp_0001');
   const [query, setQuery] = useState('配料表');
@@ -786,24 +917,9 @@ export default function Home() {
             </div>
           </div>
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
-            <div className="flex rounded-lg border border-border bg-card p-0.5">
-              <button
-                type="button"
-                onClick={() => setRole('brand')}
-                className={`rounded-md px-2.5 py-1.5 transition-colors ${role === 'brand' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
-              >
-                <span className="hidden sm:inline">品牌方视图</span>
-                <span className="sm:hidden">品牌方</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setRole('ops')}
-                className={`rounded-md px-2.5 py-1.5 transition-colors ${role === 'ops' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
-              >
-                <span className="hidden sm:inline">运营复核视图</span>
-                <span className="sm:hidden">运营</span>
-              </button>
-            </div>
+            <Badge variant="outline" className="hidden sm:inline-flex">
+              筛选业务工作台
+            </Badge>
             {IS_DEMO_MODE && (
               <Badge className="hidden bg-blue-50 text-blue-700 sm:inline-flex">
                 公开演示 · 虚构数据
@@ -1001,101 +1117,99 @@ export default function Home() {
                 {loading ? <Loader2 className="animate-spin" /> : <RefreshCw />}
                 生成推荐
               </Button>
-              {role === 'ops' && (
-                <details className="group md:col-span-4">
-                  <summary className="flex cursor-pointer list-none items-center gap-1 text-xs font-medium text-muted-foreground">
-                    <SlidersHorizontal className="size-3.5" />
-                    内部策略设置（高级）
-                    <ChevronDown className="size-3 transition-transform group-open:rotate-180" />
-                  </summary>
-                  <div className="mt-4 grid gap-5 rounded-xl border border-border bg-background/70 p-4 lg:grid-cols-2">
-                    <div>
-                      <p className="mb-3 text-xs font-bold">Hybrid召回</p>
-                      <div className="grid grid-cols-2 gap-3">
-                        {[
-                          ['关键词权重', keywordWeight, setKeywordWeight],
-                          ['内容契合权重', vectorWeight, setVectorWeight],
-                          ['召回深度', retrievalDepth, setRetrievalDepth],
-                          ['RRF平滑参数', rrfK, setRrfK],
-                        ].map(([label, value, setter]) => (
-                          <label
-                            key={String(label)}
-                            className="grid gap-1.5 text-[11px] text-muted-foreground"
-                          >
-                            {String(label)}
-                            <Input
-                              type="number"
-                              step={String(label).includes('权重') ? 0.05 : 1}
-                              value={Number(value)}
-                              onChange={(event) =>
-                                (setter as (value: number) => void)(
-                                  Number(event.target.value),
-                                )
-                              }
-                            />
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="mb-3 flex items-center justify-between">
-                        <p className="text-xs font-bold">Fit七维权重</p>
-                        <NativeSelect
-                          size="sm"
-                          value={fitMode}
-                          onChange={(event) => {
-                            const mode = event.target.value as
-                              | 'default'
-                              | 'custom';
-                            setFitMode(mode);
-                            if (mode === 'default') setWeights(defaultWeights);
-                          }}
+              <details className="group md:col-span-4">
+                <summary className="flex cursor-pointer list-none items-center gap-1 text-xs font-medium text-muted-foreground">
+                  <SlidersHorizontal className="size-3.5" />
+                  内部策略设置（高级）
+                  <ChevronDown className="size-3 transition-transform group-open:rotate-180" />
+                </summary>
+                <div className="mt-4 grid gap-5 rounded-xl border border-border bg-background/70 p-4 lg:grid-cols-2">
+                  <div>
+                    <p className="mb-3 text-xs font-bold">Hybrid召回</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      {[
+                        ['关键词权重', keywordWeight, setKeywordWeight],
+                        ['内容契合权重', vectorWeight, setVectorWeight],
+                        ['召回深度', retrievalDepth, setRetrievalDepth],
+                        ['RRF平滑参数', rrfK, setRrfK],
+                      ].map(([label, value, setter]) => (
+                        <label
+                          key={String(label)}
+                          className="grid gap-1.5 text-[11px] text-muted-foreground"
                         >
-                          <NativeSelectOption value="default">
-                            默认
-                          </NativeSelectOption>
-                          <NativeSelectOption value="custom">
-                            自定义
-                          </NativeSelectOption>
-                        </NativeSelect>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        {Object.entries(weights).map(([name, value]) => (
-                          <label
-                            key={name}
-                            className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground"
-                          >
-                            <span>{dimensionLabels[name]}</span>
-                            <Input
-                              disabled={fitMode === 'default'}
-                              type="number"
-                              min={0}
-                              max={1}
-                              step={0.05}
-                              value={value}
-                              onChange={(event) =>
-                                setWeights((current) => ({
-                                  ...current,
-                                  [name]: Number(event.target.value),
-                                }))
-                              }
-                              className="w-20"
-                            />
-                          </label>
-                        ))}
-                      </div>
-                      <p
-                        className={`mt-2 text-right text-[11px] ${Math.abs(fitWeightTotal - 1) < 0.000001 ? 'text-emerald-700' : 'text-red-600'}`}
-                      >
-                        权重合计 {(fitWeightTotal * 100).toFixed(0)}%
-                      </p>
+                          {String(label)}
+                          <Input
+                            type="number"
+                            step={String(label).includes('权重') ? 0.05 : 1}
+                            value={Number(value)}
+                            onChange={(event) =>
+                              (setter as (value: number) => void)(
+                                Number(event.target.value),
+                              )
+                            }
+                          />
+                        </label>
+                      ))}
                     </div>
                   </div>
-                  <p className="mt-2 text-[11px] text-muted-foreground">
-                    调整后请点击“生成推荐”；候选排序、Fit得分与最终组合将按当前设置重新计算。
-                  </p>
-                </details>
-              )}
+                  <div>
+                    <div className="mb-3 flex items-center justify-between">
+                      <p className="text-xs font-bold">Fit七维权重</p>
+                      <NativeSelect
+                        size="sm"
+                        value={fitMode}
+                        onChange={(event) => {
+                          const mode = event.target.value as
+                            | 'default'
+                            | 'custom';
+                          setFitMode(mode);
+                          if (mode === 'default') setWeights(defaultWeights);
+                        }}
+                      >
+                        <NativeSelectOption value="default">
+                          默认
+                        </NativeSelectOption>
+                        <NativeSelectOption value="custom">
+                          自定义
+                        </NativeSelectOption>
+                      </NativeSelect>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {Object.entries(weights).map(([name, value]) => (
+                        <label
+                          key={name}
+                          className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground"
+                        >
+                          <span>{dimensionLabels[name]}</span>
+                          <Input
+                            disabled={fitMode === 'default'}
+                            type="number"
+                            min={0}
+                            max={1}
+                            step={0.05}
+                            value={value}
+                            onChange={(event) =>
+                              setWeights((current) => ({
+                                ...current,
+                                [name]: Number(event.target.value),
+                              }))
+                            }
+                            className="w-20"
+                          />
+                        </label>
+                      ))}
+                    </div>
+                    <p
+                      className={`mt-2 text-right text-[11px] ${Math.abs(fitWeightTotal - 1) < 0.000001 ? 'text-emerald-700' : 'text-red-600'}`}
+                    >
+                      权重合计 {(fitWeightTotal * 100).toFixed(0)}%
+                    </p>
+                  </div>
+                </div>
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  调整后请点击“生成推荐”；候选排序、Fit得分与最终组合将按当前设置重新计算。
+                </p>
+              </details>
             </CardContent>
           </Card>
 
@@ -1450,7 +1564,6 @@ export default function Home() {
                           reason: '人工复核通过',
                         })
                       }
-                      role={role}
                     />
                   );
                 })}
@@ -1509,7 +1622,6 @@ export default function Home() {
                             reason: '人工复核通过',
                           })
                         }
-                        role={role}
                       />
                     );
                   })}
